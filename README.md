@@ -31,31 +31,31 @@ Node runtime Glaze already ships. Editing and building cost you nothing in Glaze
 
 ## Install
 
-Pick whichever fits how you work. All three end up using the same free build loop.
+### Quick install (one command)
 
-### 1. Terminal
-
-Clone the repo and run the installer. It links `glaze-dev` onto your PATH and links
-Glaze's own skills into `~/.claude`.
+Paste this into a terminal. It clones the repo, links `glaze-dev` onto your PATH, links
+Glaze's skills into `~/.claude`, and installs the Claude Code plugin if `claude` is
+present. Nothing else to set up.
 
 ```bash
-git clone https://github.com/GaimsDevSoftware/glaze-coder
-cd glaze-coder
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/install.sh | zsh
 ```
 
 ![Install from the terminal](install-terminal.gif)
 
-Then start a new app and jump straight into Claude Code:
+Then create your first app and jump straight into Claude Code:
 
 ```bash
 glaze-dev start "Habit Tracker"
 ```
 
-### 2. Claude Code plugin
+That is all most people need. The sections below show the individual methods if you
+prefer to do it by hand.
 
-Add the marketplace and install the plugin from inside Claude Code. This gives you the
-`glaze-app-dev` skill and the `/glaze-coder:glaze` command in every session.
+### Claude Code plugin (manual)
+
+The one-command installer already does this when `claude` is on your PATH. To do it
+yourself from inside Claude Code:
 
 ```
 /plugin marketplace add GaimsDevSoftware/glaze-coder
@@ -64,14 +64,18 @@ Add the marketplace and install the plugin from inside Claude Code. This gives y
 
 ![Install as a Claude Code plugin](install-plugin.gif)
 
-Works the same whether you run Claude Code in a terminal or in the desktop app. They
-share the same config and plugin system.
+This gives you the `glaze-app-dev` skill and the `/glaze-coder:glaze` command. It works
+the same whether you run Claude Code in a terminal or in the desktop app.
 
-### 3. Raycast
+### Raycast (optional)
 
-In Raycast, open Settings, go to Extensions, then Script Commands, and add the folder
-`glaze-coder/plugins/glaze-coder/scripts/raycast`. You get commands like "Glaze: New App",
-"Glaze: Edit App" and "Glaze: Build & Run".
+Raycast needs one manual step, since it only lets you add a script folder from its UI.
+The installer copies the folder path to your clipboard, so this is a paste:
+
+1. Raycast Settings, Extensions, Script Commands, Add Directories.
+2. In the file picker press Cmd+Shift+G, paste, Enter, then Open.
+
+You then get "Glaze: New App", "Glaze: Edit App" and "Glaze: Build & Run" in Raycast.
 
 ![Run from Raycast](install-raycast.gif)
 
