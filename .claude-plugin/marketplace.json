@@ -1,5 +1,6 @@
 {
   "name": "glaze-coder-marketplace",
+  "description": "Build Glaze (Raycast) desktop apps from Claude Code for free.",
   "owner": {
     "name": "GaimsDevSoftware",
     "url": "https://github.com/GaimsDevSoftware"
