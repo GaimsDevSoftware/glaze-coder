@@ -15,6 +15,7 @@
 emulate -L zsh
 set -e
 setopt null_glob
+GLAZE_DEV_SELF="${0:A}"   # absolute path to this script (captured before function scope, where $0 becomes the function name)
 
 # --- Finn Glaze sin data-mappe (håndterer varianter av profil-navn) -----------
 GLAZE_BASE="${GLAZE_BASE:-}"
@@ -118,7 +119,7 @@ cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/ski
 # Hjelp til Raycast-oppsettet (Raycast har ingen deeplink for å legge til en
 # script-mappe, så dette gjør det så lite som mulig: kopierer stien, åpner Raycast).
 cmd_raycast() {
-  local rc="${0:A:h}/raycast"
+  local rc="${GLAZE_DEV_SELF:h}/raycast"
   [[ -d "$rc" ]] || { print -u2 "❌ Fant ikke Raycast-mappen: $rc"; exit 1; }
   command -v pbcopy >/dev/null 2>&1 && printf '%s' "$rc" | pbcopy
   open -a Raycast 2>/dev/null || true
