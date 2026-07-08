@@ -1,0 +1,11 @@
+{
+  "name": "glaze-coder",
+  "version": "0.1.0",
+  "description": "Build, edit, run and debug Glaze (Raycast) desktop apps from Claude Code, using your own Claude subscription instead of Glaze's paid credits. Includes a skill with the Glaze project layout and safety rules, and a launcher that builds locally with the Node runtime Glaze ships.",
+  "author": {
+    "name": "Robert",
+    "email": "raakanin@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["glaze", "raycast", "desktop-apps", "vibe-coding", "macos", "code-editing"]
+}

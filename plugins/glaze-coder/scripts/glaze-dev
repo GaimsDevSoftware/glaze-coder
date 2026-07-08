@@ -1,0 +1,293 @@
+#!/bin/zsh
+# ─────────────────────────────────────────────────────────────────────────────
+# glaze-dev, Utvikle Glaze (Raycast) desktop-apper GRATIS med din egen Claude Code.
+#
+# Glaze-apper er vanlige Claude Code-prosjekter på disk. Det eneste som koster
+# Glaze-kreditter er Glaze sin INNEBYGDE AI-agent. Denne wrapperen lar deg:
+#   • gå fra ingenting til å kode en ny app med ÉN kommando (`start`)
+#   • lage en HELT NY app uten en eneste kreditt (`new`)
+#   • kjøre din EGEN `claude` (ditt Claude-abonnement) i app-mappen  → 0 kreditter
+#   • bygge/kjøre appen lokalt med Glaze sin medfølgende Node        → 0 kreditter
+#
+# Glaze sier selv at du eier appen, koden og innholdet. Dette redigerer bare
+# den koden med dine egne verktøy i stedet for Glaze sin betalte agent.
+# ─────────────────────────────────────────────────────────────────────────────
+emulate -L zsh
+set -e
+setopt null_glob
+
+# --- Finn Glaze sin data-mappe (håndterer varianter av profil-navn) -----------
+GLAZE_BASE="${GLAZE_BASE:-}"
+if [[ -z "$GLAZE_BASE" ]]; then
+  for cand in \
+    "$HOME/Library/Application Support/app.glaze.macos.main" \
+    "$HOME/Library/Application Support/"app.glaze.macos.*(/N) ; do
+    [[ -d "$cand/apps" ]] && { GLAZE_BASE="$cand"; break; }
+  done
+fi
+if [[ -z "$GLAZE_BASE" || ! -d "$GLAZE_BASE/apps" ]]; then
+  print -u2 "❌ Fant ikke Glaze. Sett GLAZE_BASE manuelt, eller start Glaze én gang."
+  exit 1
+fi
+
+APPS_DIR="$GLAZE_BASE/apps"
+AR_SKILLS="$GLAZE_BASE/agent-resources/current/.claude/skills"
+AR_GUIDE="$GLAZE_BASE/agent-resources/current/GLAZE-APP-GUIDE.md"
+NPMRC="$GLAZE_BASE/.npmrc"
+
+# --- Glaze sin medfølgende Node (kreves: node >= 24) --------------------------
+node_bins=("$GLAZE_BASE"/node/runtime/*/bin(N))
+if (( ${#node_bins} )); then
+  export PATH="${node_bins[1]}:$PATH"
+fi
+# La npm bruke samme policy som Glaze (uten å endre .npmrc)
+[[ -f "$NPMRC" ]] && export NPM_CONFIG_USERCONFIG="$NPMRC"
+
+# --- Hjelpere -----------------------------------------------------------------
+_appmeta() { # <app-dir> -> "productName|name|id"
+  local pj="$1/.glaze-sources/package.json"
+  [[ -f "$pj" ]] || return 1
+  node -e 'const p=require(process.argv[1]);process.stdout.write(`${p.productName||p.name||""}|${p.name||""}|${p.id||""}`)' "$pj" 2>/dev/null
+}
+
+_resolve() { # <query> -> echoes app source dir (.glaze-sources), or fails
+  local q="$1" d meta pn nm id
+  for d in "$APPS_DIR"/*(/N); do
+    meta="$(_appmeta "$d")" || continue
+    pn="${meta%%|*}"; id="${meta##*|}"; nm="${${meta#*|}%%|*}"
+    local base="${d:t}"
+    if [[ "$base" == "$q"* || "$pn:l" == "$q:l" || "$nm:l" == "$q:l" \
+       || "$id" == "$q" || "$pn:l" == *"$q:l"* ]]; then
+      print -r -- "$d/.glaze-sources"; return 0
+    fi
+  done
+  return 1
+}
+
+_slug()  { print -r -- "${1:l}" | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//'; }
+_genid() { LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 8; }
+
+# Kobler Glaze sine innebygde skills inn i din globale ~/.claude/skills, slik at
+# DIN claude får samme Glaze-kunnskap som Glaze sin egen agent. Idempotent.
+_link_skills() {
+  [[ -d "$AR_SKILLS" ]] || return 0
+  mkdir -p "$HOME/.claude/skills"
+  local s
+  for s in "$AR_SKILLS"/*(/N); do
+    ln -sfn "$s" "$HOME/.claude/skills/${s:t}"
+  done
+  [[ -f "$AR_GUIDE" ]] && ln -sfn "$AR_GUIDE" "$HOME/.claude/skills/GLAZE-APP-GUIDE.md"
+}
+
+_need() { # <query> -> sets $SRC and $ROOT, or exits
+  local q="$1"
+  [[ -n "$q" ]] || { print -u2 "❌ Mangler app-navn. Prøv: glaze-dev list"; exit 1; }
+  SRC="$(_resolve "$q")" || { print -u2 "❌ Fant ingen app som matcher '$q'. Prøv: glaze-dev list"; exit 1; }
+  ROOT="${SRC:h}"
+}
+
+# --- Kommandoer ---------------------------------------------------------------
+cmd_list() {
+  print -r -- "Glaze-apper (i $APPS_DIR):"
+  local d meta
+  for d in "$APPS_DIR"/*(/N); do
+    meta="$(_appmeta "$d")" || continue
+    printf "  • %-24s  [mappe: %s]\n" "${meta%%|*}" "${d:t}"
+  done
+}
+
+cmd_code() { # åpne DIN claude i app-mappen (gratis iterasjon)
+  _need "$1"; shift
+  _link_skills
+  print -r -- "▶ Claude Code i: $SRC"
+  print -r -- "  (bruker ditt Claude-abonnement, ingen Glaze-kreditter)"
+  cd "$SRC"
+  if [[ $# -gt 0 ]]; then exec claude "$@"; else exec claude; fi
+}
+
+cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1 …"; npm run build; }
+cmd_dev()     { _need "$1"; cd "$SRC"; print "▶ Dev-server for $1 (Ctrl-C for å stoppe) …"; npm run dev; }
+cmd_check()   { _need "$1"; cd "$SRC"; npm run type-check; }
+cmd_lint()    { _need "$1"; cd "$SRC"; npm run lint; }
+cmd_run()     { _need "$1"; local app=("$ROOT"/*.app(N)); (( ${#app} )) && open "${app[1]}" || open "$SRC/../"*.app; }
+cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
+cmd_path()    { _need "$1"; print -r -- "$SRC"; }
+cmd_finder()  { _need "$1"; open "$SRC"; }
+cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/skills"; }
+
+# ENKLESTE VEI: fra ingenting til å kode. Lager en blank app (0 kreditter) og
+# hopper rett inn i Claude Code med et startbudskap. Én kommando, ferdig.
+cmd_start() {
+  local prod="$*"
+  [[ -n "$prod" ]] || { print -u2 'Bruk: glaze-dev start "<App-navn>"'; exit 1; }
+  cmd_new "$prod" --blank --no-open
+  local name="$(_slug "$prod")"
+  cmd_code "$name" "Dette er en ny, tom Glaze-app kalt '$prod'. Les den lokale Glaze-guiden og relevante skills, spør meg kort hva appen skal gjøre, og bygg den ut. Kun endringer i .glaze-sources, bygg med 'npm run build', og åpne appen for å vise resultatet."
+}
+
+# Lag en HELT NY app uten en eneste Glaze-kreditt:
+#   klon en eksisterende app du eier (mal) → ny id → bygg lokalt → bygg launcher-
+#   bundle → ad-hoc-signer → start. Ingen agent-tur = ingen kreditter.
+cmd_new() {
+  local prod="" from="" blank=0 noopen=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --from)    from="$2"; shift 2 ;;
+      --blank)   blank=1; shift ;;
+      --no-open) noopen=1; shift ;;
+      *) [[ -z "$prod" ]] && prod="$1" || prod="$prod $1"; shift ;;
+    esac
+  done
+  [[ -n "$prod" ]] || { print -u2 '❌ Bruk: glaze-dev new "<Produktnavn>" [--from <app>] [--blank]'; exit 1; }
+
+  # velg mal-app (en eksisterende app du eier)
+  local tsrc troot
+  if [[ -n "$from" ]]; then
+    tsrc="$(_resolve "$from")" || { print -u2 "❌ Fant ikke mal-app '$from'"; exit 1; }
+  else
+    local first=("$APPS_DIR"/*(/N))
+    (( ${#first} )) || { print -u2 "❌ Ingen eksisterende Glaze-app å bruke som mal. Lag én i Glaze først (gratisnivået holder)."; exit 1; }
+    tsrc="${first[1]}/.glaze-sources"
+  fi
+  troot="${tsrc:h}"
+  local tmeta="$(_appmeta "$troot")"; local tprod="${tmeta%%|*}"
+  local tbundle="/Applications/Glaze/${tprod}.app"
+  [[ -d "$tbundle" ]] || { print -u2 "❌ Fant ikke mal-bundle: $tbundle"; exit 1; }
+
+  local name="$(_slug "$prod")"; local id="$(_genid)"
+  local folder="${name}-local-${id}"
+  local new="$APPS_DIR/$folder"; local newsrc="$new/.glaze-sources"
+  local bid="app.glaze.macos.${id}-local"
+  local exe="${prod// /}"
+  local newapp="/Applications/Glaze/${prod}.app"
+
+  print -r -- "▶ Ny app: $prod  (id=$id, mappe=$folder, mal=$tprod)"
+
+  # 1) klon kilde (APFS copy-on-write), fjern arv vi ikke vil ha
+  rm -rf "$new" 2>/dev/null
+  cp -cR "$troot" "$new" 2>/dev/null || cp -R "$troot" "$new"
+  rm -f  "$new"/*.app(N) 2>/dev/null
+  rm -rf "$newsrc/.git" "$new/.glaze" 2>/dev/null
+  rm -f  "$newsrc/.glaze_memory/PROJECT-HISTORY.md"(N) 2>/dev/null
+
+  # 2) ny identitet i package.json
+  ( cd "$newsrc" && node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("package.json"));const[,id,name,prod]=process.argv;j.id=id;j.name=name;j.productName=prod;j.description="A Glaze app: "+prod;fs.writeFileSync("package.json",JSON.stringify(j,null,2))' "$id" "$name" "$prod" )
+
+  # 3) valgfri blanking av UI
+  if (( blank )); then
+    local hv="$newsrc/renderer/main/home-view.tsx"
+    if [[ -f "$hv" ]]; then
+      cat > "$hv" <<EOF
+export function HomeView() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <p className="text-secondary">$prod, start building with Claude Code.</p>
+    </div>
+  );
+}
+EOF
+    fi
+  fi
+
+  # 4) bygg lokalt (gratis)
+  print -r -- "▶ Bygger lokalt …"
+  ( cd "$newsrc" && npm run build ) >/dev/null 2>&1 || { print -u2 "❌ Bygg feilet. Feilsøk: glaze-dev build $name"; exit 1; }
+
+  # 5) launcher-bundle (kopier mal, pek symlink, patch identitet)
+  rm -rf "$newapp" 2>/dev/null
+  cp -cR "$tbundle" "$newapp" 2>/dev/null || cp -R "$tbundle" "$newapp"
+  mv "$newapp/Contents/MacOS/${tprod}" "$newapp/Contents/MacOS/${exe}" 2>/dev/null || true
+  rm -f "$newapp/Contents/Resources/glaze-runtime"
+  ln -s "$new/.glaze" "$newapp/Contents/Resources/glaze-runtime"
+  local plist="$newapp/Contents/Info.plist"
+  plutil -replace CFBundleExecutable  -string "$exe"  "$plist"
+  plutil -replace CFBundleDisplayName -string "$prod" "$plist"
+  plutil -replace CFBundleName        -string "$prod" "$plist"
+  plutil -replace CFBundleIdentifier  -string "$bid"  "$plist"
+  plutil -replace CFBundleURLTypes.0.CFBundleURLName      -string "$bid"               "$plist" 2>/dev/null || true
+  plutil -replace CFBundleURLTypes.0.CFBundleURLSchemes.0 -string "glaze-${id}-local"  "$plist" 2>/dev/null || true
+
+  # 6) ad-hoc-signer (behold entitlements fra malen)
+  local ent="$(mktemp)"
+  codesign -d --entitlements "$ent" --xml "$tbundle" 2>/dev/null || true
+  codesign --remove-signature "$newapp" 2>/dev/null || true
+  if [[ -s "$ent" ]]; then
+    codesign --force --deep -s - --entitlements "$ent" "$newapp" 2>/dev/null || true
+  else
+    codesign --force --deep -s - "$newapp" 2>/dev/null || true
+  fi
+  rm -f "$ent"
+
+  print -r -- "✓ Opprettet uten kreditter: $newapp"
+  (( noopen )) || open "$newapp"
+  print -r -- "Neste: glaze-dev code $name \"bygg ut appen slik: …\"  (gratis videreutvikling)"
+}
+
+# Fjern en app fullstendig (bundle, kilde, profil, logger). Motstykket til `new`.
+cmd_rm() {
+  _need "$1"
+  local meta="$(_appmeta "$ROOT")"; local prod="${meta%%|*}"; local id="${meta##*|}"
+  print -r -- "Fjerner '$prod' (mappe=${ROOT:t}, id=$id) …"
+  osascript -e "tell application \"$prod\" to quit" 2>/dev/null || true
+  pkill -f "/Applications/Glaze/${prod}.app" 2>/dev/null || true
+  sleep 1
+  rm -rf "/Applications/Glaze/${prod}.app"
+  rm -rf "$ROOT"
+  rm -rf "$HOME/Library/Application Support/app.glaze.macos.${id}-local" 2>/dev/null || true
+  rm -rf "$HOME/Library/Logs/app.glaze.macos.${id}-local" 2>/dev/null || true
+  print -r -- "✓ Fjernet."
+}
+
+cmd_help() {
+cat <<'EOF'
+glaze-dev, gratis utvikling av Glaze-apper med din egen Claude Code
+
+ENKLESTE VEI (fra ingenting til å kode, én kommando):
+  glaze-dev start "Min App"       Lager en tom app (0 kreditter) og åpner Claude
+                                  Code der, bare beskriv hva appen skal gjøre.
+
+ALLE KOMMANDOER:
+  glaze-dev list                        List alle Glaze-apper
+  glaze-dev start "<Navn>"              Ny tom app + hopp rett inn i Claude Code
+  glaze-dev new   "<Navn>" [--from <app>] [--blank] [--no-open]
+                                        Lag en ny app uten kreditter (uten å åpne claude)
+  glaze-dev code   <app> [...]          Åpne DIN claude i app-mappen (gratis)
+  glaze-dev dev    <app>                Dev-server (live reload)
+  glaze-dev build  <app>                Bygg (lokalt, gratis)
+  glaze-dev run    <app>                Åpne den bygde appen
+  glaze-dev br     <app>                Bygg + kjør
+  glaze-dev check  <app>                TypeScript type-check
+  glaze-dev lint   <app>                ESLint
+  glaze-dev path   <app>                Skriv ut sti til .glaze-sources
+  glaze-dev finder <app>                Åpne app-mappen i Finder
+  glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
+  glaze-dev skills                      Koble Glaze-skills inn i ~/.claude/skills
+
+<app> matcher på mappenavn eller produktnavn (delvis treff er ok).
+
+NB: nye apper er ad-hoc-signert for eget bruk. Publisering til den offentlige
+Glaze Store krever fortsatt Glaze-innlogging (gratis, ikke kreditter). `new`/`start`
+bruker en app du allerede eier som mal (--blank gir tomt UI du bygger ut selv).
+EOF
+}
+
+# --- Dispatch -----------------------------------------------------------------
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  list)                 cmd_list ;;
+  start|go)             cmd_start "$@" ;;
+  new|create)           cmd_new "$@" ;;
+  code|edit)            cmd_code "$@" ;;
+  dev)                  cmd_dev "$@" ;;
+  build)                cmd_build "$@" ;;
+  run|open)             cmd_run "$@" ;;
+  br|buildrun|build-run) cmd_buildrun "$@" ;;
+  check|type-check)     cmd_check "$@" ;;
+  lint)                 cmd_lint "$@" ;;
+  path)                 cmd_path "$@" ;;
+  finder|reveal)        cmd_finder "$@" ;;
+  rm|delete|remove)     cmd_rm "$@" ;;
+  skills|link-skills)   cmd_skills ;;
+  help|-h|--help)       cmd_help ;;
+  *) print -u2 "Ukjent kommando: $cmd"; cmd_help; exit 1 ;;
+esac

@@ -1,0 +1,17 @@
+{
+  "name": "glaze-coder-marketplace",
+  "owner": {
+    "name": "Robert",
+    "url": "https://github.com/"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "glaze-coder",
+      "source": "glaze-coder",
+      "description": "Develop Glaze (Raycast) desktop apps from Claude Code for free."
+    }
+  ]
+}
