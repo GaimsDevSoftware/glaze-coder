@@ -69,8 +69,14 @@ the same whether you run Claude Code in a terminal or in the desktop app.
 
 ### Raycast (optional)
 
-Raycast needs one manual step, since it only lets you add a script folder from its UI.
-The installer copies the folder path to your clipboard, so this is a paste:
+Raycast can only add a script folder from its own UI (there is no `raycast://` deeplink
+to add a directory), so this is the one step that needs a click. Run:
+
+```bash
+glaze-dev raycast
+```
+
+That copies the folder path to your clipboard and opens Raycast. Then:
 
 1. Raycast Settings, Extensions, Script Commands, Add Directories.
 2. In the file picker press Cmd+Shift+G, paste, Enter, then Open.

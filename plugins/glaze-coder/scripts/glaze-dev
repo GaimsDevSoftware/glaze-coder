@@ -115,6 +115,21 @@ cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
 cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/skills"; }
 
+# Hjelp til Raycast-oppsettet (Raycast har ingen deeplink for å legge til en
+# script-mappe, så dette gjør det så lite som mulig: kopierer stien, åpner Raycast).
+cmd_raycast() {
+  local rc="${0:A:h}/raycast"
+  [[ -d "$rc" ]] || { print -u2 "❌ Fant ikke Raycast-mappen: $rc"; exit 1; }
+  command -v pbcopy >/dev/null 2>&1 && printf '%s' "$rc" | pbcopy
+  open -a Raycast 2>/dev/null || true
+  osascript -e 'display notification "Add Directories, så Cmd+Shift+G og lim inn" with title "glaze-dev: Raycast"' 2>/dev/null || true
+  print -r -- "Sti kopiert til utklippstavlen:"
+  print -r -- "  $rc"
+  print -r -- ""
+  print -r -- "I Raycast: Settings > Extensions > Script Commands > Add Directories,"
+  print -r -- "trykk Cmd+Shift+G, lim inn (Cmd+V), Enter, så Open."
+}
+
 # ENKLESTE VEI: fra ingenting til å kode. Lager en blank app (0 kreditter) og
 # hopper rett inn i Claude Code med et startbudskap. Én kommando, ferdig.
 cmd_start() {
@@ -261,6 +276,7 @@ ALLE KOMMANDOER:
   glaze-dev path   <app>                Skriv ut sti til .glaze-sources
   glaze-dev finder <app>                Åpne app-mappen i Finder
   glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
+  glaze-dev raycast                     Sett opp Raycast (kopier sti + åpne Raycast)
   glaze-dev skills                      Koble Glaze-skills inn i ~/.claude/skills
 
 <app> matcher på mappenavn eller produktnavn (delvis treff er ok).
@@ -287,6 +303,7 @@ case "$cmd" in
   path)                 cmd_path "$@" ;;
   finder|reveal)        cmd_finder "$@" ;;
   rm|delete|remove)     cmd_rm "$@" ;;
+  raycast|raycast-setup) cmd_raycast "$@" ;;
   skills|link-skills)   cmd_skills ;;
   help|-h|--help)       cmd_help ;;
   *) print -u2 "Ukjent kommando: $cmd"; cmd_help; exit 1 ;;
