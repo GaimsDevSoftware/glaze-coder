@@ -81,7 +81,13 @@ That copies the folder path to your clipboard and opens Raycast. Then:
 1. Raycast Settings, Extensions, Script Commands, Add Directories.
 2. In the file picker press Cmd+Shift+G, paste, Enter, then Open.
 
-You then get "Glaze: New App", "Glaze: Edit App" and "Glaze: Build & Run" in Raycast.
+You then get three commands in Raycast, and none of them need a terminal:
+
+- "Glaze: New App" builds a new app and opens it.
+- "Glaze: Build & Run" builds an app and opens it.
+- "Glaze: Edit App" opens the app's source folder and copies `glaze-dev code '<app>'`
+  to your clipboard, so you can edit it in a terminal or with `/glaze-coder:glaze` in
+  Claude Code.
 
 ![Run from Raycast](install-raycast.gif)
 
