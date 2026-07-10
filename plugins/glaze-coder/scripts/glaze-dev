@@ -106,8 +106,8 @@ cmd_code() { # åpne DIN claude i app-mappen (gratis iterasjon)
   if [[ $# -gt 0 ]]; then exec claude "$@"; else exec claude; fi
 }
 
-cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1 …"; npm run build; }
-cmd_dev()     { _need "$1"; cd "$SRC"; print "▶ Dev-server for $1 (Ctrl-C for å stoppe) …"; npm run dev; }
+cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1..."; npm run build; }
+cmd_dev()     { _need "$1"; cd "$SRC"; print "▶ Dev-server for $1 (Ctrl-C for å stoppe)..."; npm run dev; }
 cmd_check()   { _need "$1"; cd "$SRC"; npm run type-check; }
 cmd_lint()    { _need "$1"; cd "$SRC"; npm run lint; }
 cmd_run()     { _need "$1"; local app=("$ROOT"/*.app(N)); (( ${#app} )) && open "${app[1]}" || open "$SRC/../"*.app; }
@@ -206,7 +206,7 @@ EOF
   fi
 
   # 4) bygg lokalt (gratis)
-  print -r -- "▶ Bygger lokalt …"
+  print -r -- "▶ Bygger lokalt..."
   ( cd "$newsrc" && npm run build ) >/dev/null 2>&1 || { print -u2 "❌ Bygg feilet. Feilsøk: glaze-dev build $name"; exit 1; }
 
   # 5) launcher-bundle (kopier mal, pek symlink, patch identitet)
@@ -236,14 +236,14 @@ EOF
 
   print -r -- "✓ Opprettet uten kreditter: $newapp"
   (( noopen )) || open "$newapp"
-  print -r -- "Neste: glaze-dev code $name \"bygg ut appen slik: …\"  (gratis videreutvikling)"
+  print -r -- "Neste: glaze-dev code $name \"bygg ut appen slik:...\"  (gratis videreutvikling)"
 }
 
 # Fjern en app fullstendig (bundle, kilde, profil, logger). Motstykket til `new`.
 cmd_rm() {
   _need "$1"
   local meta="$(_appmeta "$ROOT")"; local prod="${meta%%|*}"; local id="${meta##*|}"
-  print -r -- "Fjerner '$prod' (mappe=${ROOT:t}, id=$id) …"
+  print -r -- "Fjerner '$prod' (mappe=${ROOT:t}, id=$id)..."
   osascript -e "tell application \"$prod\" to quit" 2>/dev/null || true
   pkill -f "/Applications/Glaze/${prod}.app" 2>/dev/null || true
   sleep 1
