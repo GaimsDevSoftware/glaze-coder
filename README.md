@@ -46,9 +46,20 @@ does, and glaze-coder never calls it.
 
 ## Install
 
-Open Terminal, paste this line, press Enter. It clones the repo, puts `glaze-dev` on your
-PATH, links Glaze's skills into `~/.claude`, and installs the Claude Code plugin if
-`claude` is present.
+### Easiest: download the installer
+
+Download **glaze-coder-installer.dmg** from the
+[latest release](https://github.com/GaimsDevSoftware/glaze-coder/releases/latest) and open
+it. Right-click "Install glaze-coder.command" and choose Open, then click Open again in the
+warning. A Terminal window sets everything up and tells you when it is done.
+
+The warning appears only the first time, because the installer is not signed with a paid
+Apple certificate. The DMG contains a READ ME FIRST file with the same steps.
+
+### One command
+
+If you are comfortable with the terminal, paste this line and press Enter instead. It does
+the same thing.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/install.sh | zsh
@@ -56,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/i
 
 ![Install from the terminal](install-terminal.gif)
 
-That is all you need. If you would rather set it up by hand, see
+Either way, that is all you need. If you would rather set things up by hand, see
 [Other ways to install](#other-ways-to-install) below.
 
 ## Get started in three steps

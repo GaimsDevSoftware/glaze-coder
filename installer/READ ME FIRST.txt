@@ -1,0 +1,23 @@
+glaze-coder installer
+
+How to run it:
+
+  1. Right-click "Install glaze-coder.command" and choose Open.
+  2. In the warning that appears, click Open again.
+     (This is only needed the first time. The warning shows because the
+     installer is not signed with a paid Apple certificate.)
+  3. A Terminal window opens, installs glaze-coder, and tells you when it is done.
+
+What it does:
+
+  - Downloads glaze-coder into your home folder (~/glaze-coder)
+  - Puts the "glaze-dev" command on your PATH
+  - Installs the Claude Code plugin if Claude Code is present
+
+What you need first:
+
+  - macOS (Tahoe or newer) on Apple Silicon
+  - Glaze installed, with at least one app
+  - Claude Code installed
+
+More help: https://github.com/GaimsDevSoftware/glaze-coder
