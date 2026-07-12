@@ -1,0 +1,40 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1117"/>
+      <stop offset="1" stop-color="#161b2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1280" height="640" fill="none"/>
+
+  <!-- credits chip, top right -->
+  <rect x="946" y="70" width="248" height="150" rx="26" fill="#0f2318" stroke="#1f5a37" stroke-width="2"/>
+  <text x="1070" y="152" font-family="Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#22c55e" text-anchor="middle">0</text>
+  <text x="1070" y="192" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#22c55e" text-anchor="middle">Glaze credits</text>
+
+  <!-- title -->
+  <text x="86" y="250" font-family="Helvetica, Arial, sans-serif" font-size="132" font-weight="800" fill="#eef1f5">glaze-coder</text>
+
+  <!-- taglines -->
+  <text x="90" y="336" font-family="Helvetica, Arial, sans-serif" font-size="46" font-weight="500" fill="#aeb6c2">Build Glaze (Raycast) Mac apps from Claude Code.</text>
+  <text x="90" y="402" font-family="Helvetica, Arial, sans-serif" font-size="46" font-weight="600" fill="#a78bfa">Use your own Claude. Zero Glaze credits.</text>
+
+  <!-- badges -->
+  <g font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="700">
+    <rect x="90"  y="470" width="150" height="58" rx="29" fill="none" stroke="#22d3ee" stroke-width="2"/>
+    <text x="165" y="508" fill="#22d3ee" text-anchor="middle">macOS</text>
+
+    <rect x="256" y="470" width="168" height="58" rx="29" fill="none" stroke="#f87171" stroke-width="2"/>
+    <text x="340" y="508" fill="#f87171" text-anchor="middle">Raycast</text>
+
+    <rect x="440" y="470" width="238" height="58" rx="29" fill="none" stroke="#e8934a" stroke-width="2"/>
+    <text x="559" y="508" fill="#e8934a" text-anchor="middle">Claude Code</text>
+
+    <rect x="694" y="470" width="150" height="58" rx="29" fill="none" stroke="#4ade80" stroke-width="2"/>
+    <text x="769" y="508" fill="#4ade80" text-anchor="middle">Free MIT</text>
+  </g>
+
+  <!-- footer url -->
+  <text x="90" y="596" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="500" fill="#5b6472">github.com/GaimsDevSoftware/glaze-coder</text>
+</svg>
