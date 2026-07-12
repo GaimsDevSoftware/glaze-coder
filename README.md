@@ -51,10 +51,16 @@ does, and glaze-coder never calls it.
 Download **glaze-coder-installer.dmg** from the
 [latest release](https://github.com/GaimsDevSoftware/glaze-coder/releases/latest) and open
 it. Right-click "Install glaze-coder.command" and choose Open, then click Open again in the
-warning. A Terminal window sets everything up and tells you when it is done.
+warning. A Terminal window opens and asks which parts you want:
 
-The warning appears only the first time, because the installer is not signed with a paid
-Apple certificate. The DMG contains a READ ME FIRST file with the same steps.
+- The core `glaze-dev` command is always installed.
+- Glaze skills for Claude Code (recommended).
+- The Claude Code plugin `/glaze-coder:glaze` (recommended).
+- Raycast commands (optional, only if you use Raycast).
+
+Press Enter to accept the suggestion for each one. The warning appears only the first time,
+because the installer is not signed with a paid Apple certificate. The DMG contains a READ
+ME FIRST file with the same steps.
 
 ### One command
 
