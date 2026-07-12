@@ -9,7 +9,7 @@
     {
       "name": "glaze-coder",
       "source": "./plugins/glaze-coder",
-      "description": "Develop Glaze (Raycast) desktop apps from Claude Code for free."
+      "description": "Build, edit and run Glaze (Raycast) macOS apps from Claude Code for free — vibe-code apps for the Glaze Store using your own Claude subscription, no Glaze credits."
     }
   ]
 }
