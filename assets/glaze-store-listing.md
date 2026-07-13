@@ -14,16 +14,16 @@ Recommended: 1
 
 ## Short description (one or two lines)
 
-Build, edit and run Glaze (Raycast) Mac apps from Claude Code using your own Claude.
-Editing and building happen on your machine, so they cost no Glaze credits.
+Build, edit and run Glaze (Raycast) Mac apps from Claude Code or ZCode using your own
+subscription. Editing and building happen on your machine, so they cost no Glaze credits.
 
 ## Long description
 
-glaze-coder lets you build Glaze (Raycast) Mac apps with Claude Code instead of Glaze's
-built-in agent. Every Glaze app is a normal project on disk, and Glaze lets you edit the
-source yourself. glaze-coder points your own Claude at that source and builds it locally
-with the Node runtime Glaze already ships, so creating, editing and building never spend
-Glaze credits.
+glaze-coder lets you build Glaze (Raycast) Mac apps with Claude Code or ZCode instead of
+Glaze's built-in agent. Every Glaze app is a normal project on disk, and Glaze lets you
+edit the source yourself. glaze-coder points your own coding tool at that source and builds
+it locally with the Node runtime Glaze already ships, so creating, editing and building
+never spend Glaze credits. When both tools are installed you pick which one to use.
 
 You get a skill that teaches Claude Code the Glaze project layout and build steps, a
 command that lists your apps and starts building, and a launcher for the terminal and
@@ -35,5 +35,5 @@ Works on macOS (Tahoe or newer) on Apple Silicon, with Glaze and Claude Code ins
 ## Keywords / tags
 
 glaze, glaze app, glaze store, raycast, claude, claude code, claude code plugin,
-anthropic, mac apps, macos, apple silicon, app builder, no code, vibe coding, ai coding,
-build mac apps, desktop apps
+anthropic, zcode, z.ai, glm, mac apps, macos, apple silicon, app builder, no code,
+vibe coding, ai coding, build mac apps, desktop apps

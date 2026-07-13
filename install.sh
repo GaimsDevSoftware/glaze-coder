@@ -89,13 +89,20 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
 fi
 print ""
 
-# 3. Glaze skills for Claude Code.
-head "Glaze skills for Claude Code  (recommended)"
-print "  Links Glaze's own guides into ~/.claude so Claude Code knows how Glaze apps"
-print "  are built and follows the right steps. Safe to install. Recommended for everyone."
+# 3. Glaze skills for your coding tool(s).
+if [[ -d "$HOME/.zcode" ]]; then
+  head "Glaze skills for Claude Code and ZCode  (recommended)"
+  print "  Links Glaze's own guides into ~/.claude and ~/.zcode so both Claude Code and"
+  print "  ZCode know how Glaze apps are built. Safe to install. Recommended for everyone."
+else
+  head "Glaze skills for Claude Code  (recommended)"
+  print "  Links Glaze's own guides into ~/.claude so Claude Code knows how Glaze apps"
+  print "  are built and follows the right steps. Safe to install. Recommended for everyone."
+fi
 if want "$GLAZE_SKILLS" y "Install the Glaze skills?"; then
   "$HOME/.local/bin/glaze-dev" skills >/dev/null 2>&1 || true
-  green "  Installed Glaze skills into ~/.claude"
+  green "  Installed Glaze skills"
+  [[ -d "$HOME/.zcode" ]] && green "  ZCode found: skills linked into ~/.zcode too"
 else
   print "  Skipped."
 fi

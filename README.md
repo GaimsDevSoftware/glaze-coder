@@ -3,14 +3,14 @@
 # glaze-coder
 
 Build, edit and run [Glaze](https://www.glaze.app) (by Raycast) Mac apps from
-[Claude Code](https://claude.com/product/claude-code) for free. You point your own
-Claude at the app's source and build it on your machine, so editing and building never
-spend Glaze credits.
+[Claude Code](https://claude.com/product/claude-code) or [ZCode](https://zcode.z.ai) for
+free. You point your own coding tool at the app's source and build it on your machine, so
+editing and building never spend Glaze credits.
 
 Glaze builds Mac apps with a built-in AI agent, and that agent is what costs credits.
 But every Glaze app is a normal project on disk, and Glaze
 [lets you edit the source yourself](https://manual.glaze.app/advanced/editing-code).
-glaze-coder wires your Claude Code into that source and builds it locally with the Node
+glaze-coder wires your own coding tool into that source and builds it locally with the Node
 runtime Glaze already ships. Nothing goes back to Glaze's agent, so nothing costs credits.
 
 ![macOS](https://img.shields.io/badge/macOS-Tahoe%2B-black)
@@ -39,10 +39,25 @@ does, and glaze-coder never calls it.
 - A launcher (`glaze-dev`) for the terminal and Raycast, with short commands to create,
   edit, build, run and remove apps.
 
+## Choose your coding tool
+
+glaze-coder works with two coding tools, and you pick which one each time:
+
+- **Claude Code**, using your own Claude subscription.
+- **ZCode** by z.ai, using your GLM Coding Plan.
+
+When both are installed, `glaze-dev code` and `glaze-dev start` ask which one you want.
+To skip the question, pass `--tool claude` or `--tool zcode`, or set `GLAZE_CODER` to
+`claude` or `zcode`. In Raycast, the New App and Edit App commands have a tool dropdown.
+
+Either way it stays free on the Glaze side. The Glaze skills are linked into both
+`~/.claude` and `~/.zcode`, so both tools know how Glaze apps are built.
+
 ## Requirements
 
 - macOS (Tahoe or newer) on Apple Silicon, with Glaze installed and at least one app.
-- [Claude Code](https://claude.com/product/claude-code) installed, with `claude` on your PATH.
+- At least one coding tool: [Claude Code](https://claude.com/product/claude-code) with
+  `claude` on your PATH, or [ZCode](https://zcode.z.ai) installed.
 
 ## Install
 
@@ -78,14 +93,17 @@ Either way, that is all you need. If you would rather set things up by hand, see
 
 ## Get started in three steps
 
-1. Create an app and open Claude Code in it:
+1. Create an app and open your coding tool in it:
 
    ```bash
    glaze-dev start "Habit Tracker"
    ```
 
-2. In Claude Code, describe what the app should do. For example: "Track daily habits with
-   a checklist, and show a streak counter." Claude Code writes and edits the code for you.
+   If you have both Claude Code and ZCode, it asks which one to use. Add `--tool claude`
+   or `--tool zcode` to choose up front.
+
+2. Describe what the app should do. For example: "Track daily habits with a checklist,
+   and show a streak counter." Your coding tool writes and edits the code for you.
 
 3. Build it and open it:
 
@@ -190,13 +208,20 @@ credits.
 No. You describe the app to Claude Code in plain words and it writes the code. You can also
 open the source and edit it yourself when you want to.
 
-**Which Claude model should I use?**
-Any model Claude Code offers will work. Newer models like Claude Opus tend to produce
-better app code, but the plugin behaves the same whichever you pick.
+**Can I use ZCode instead of Claude Code?**
+Yes. glaze-coder works with both Claude Code and ZCode by z.ai. When both are installed it
+asks which one to use, or you can set it with `--tool claude` / `--tool zcode` or the
+`GLAZE_CODER` variable. The Glaze skills are linked into both `~/.claude` and `~/.zcode`,
+so ZCode gets the same Glaze knowledge. ZCode runs on your GLM Coding Plan.
 
-**Does it work in both the Claude Code terminal and desktop app?**
-Yes. The plugin and the `/glaze-coder:glaze` command work the same in both. The Raycast
-"Edit App" command can open either a terminal or the Claude Code desktop app.
+**Which model should I use?**
+Any model your coding tool offers will work. Stronger models tend to produce better app
+code, but glaze-coder behaves the same whichever you pick.
+
+**Does it work in both the terminal and the desktop app?**
+Yes. The plugin and the `/glaze-coder:glaze` command work the same in the Claude Code
+terminal and desktop app. The Raycast "Edit App" command can open a terminal, the Claude
+Code desktop app, or the ZCode desktop app.
 
 **What do I need installed?**
 macOS (Tahoe or newer) on Apple Silicon, Glaze with at least one app, and Claude Code with

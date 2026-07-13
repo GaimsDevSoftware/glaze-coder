@@ -5,9 +5,11 @@
 # @raycast.packageName Glaze Coder
 # @raycast.icon 🛠️
 # @raycast.argument1 { "type": "text", "placeholder": "app name" }
+# @raycast.argument2 { "type": "dropdown", "placeholder": "verktøy", "optional": true, "data": [{"title": "Claude Code", "value": "claude"}, {"title": "ZCode (z.ai)", "value": "zcode"}] }
+# @raycast.argument3 { "type": "dropdown", "placeholder": "hvor", "optional": true, "data": [{"title": "Auto (kjørende/sist brukte terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Desktop-appen", "value": "desktop"}] }
 #
-# Popup lar deg velge hvor redigeringen skal åpnes: en installert terminal
-# eller Claude Code i Desktop-appen. Auto = kjørende/sist brukte terminal.
+# Valgene skjer i Raycast-feltene (dropdown), ingen ekstern dialog = aldri fokustrøbbel.
+# Tomt verktøy = Claude Code. Tomt sted = auto. Nye terminaler: legg til i data-listen.
 export PATH="$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 source "$HOME/glaze-coder/plugins/glaze-coder/scripts/terminal-launch.sh"
 
@@ -17,34 +19,27 @@ if [[ -z "$src" ]]; then
   exit 0
 fi
 
-# Bygg valglisten dynamisk fra det som faktisk er installert
-choices=("Auto (kjørende/sist brukte terminal)")
-for name in Terminal iTerm Ghostty kitty Alacritty WezTerm; do
-  _tl_installed "$name.app" >/dev/null && choices+=("$name")
-done
-[[ -d /Applications/Claude.app ]] && choices+=("Claude Code (Desktop-appen)")
+tool="${2:-claude}"
+where="${3:-auto}"
+[[ "$tool" == zcode ]] && label="ZCode" || label="Claude Code"
+cmd="exec $HOME/.local/bin/glaze-dev code --tool '$tool' '$1'"
 
-aslist=""
-for c in "${choices[@]}"; do aslist+="\"$c\", "; done
-aslist="${aslist%, }"
-
-pick="$(osascript -e "try
-  tell application \"System Events\" to set frontmost of process \"osascript\" to true
-end try
-choose from list {$aslist} with title \"Glaze: Edit $1\" with prompt \"Hvor vil du åpne redigeringen?\" default items {\"${choices[1]}\"}" 2>/dev/null)"
-[[ -z "$pick" || "$pick" == "false" ]] && { echo "Avbrutt."; exit 0; }
-
-cmd="exec $HOME/.local/bin/glaze-dev code '$1'"
-case "$pick" in
-  "Claude Code (Desktop-appen)")
+case "$where" in
+  desktop)
     printf '%s' "$src" | pbcopy
-    open -a Claude
-    osascript -e "display notification \"Velg $1 under Recents i Code-fanen. Stien ligger på utklippstavlen.\" with title \"Glaze: Edit $1\"" 2>/dev/null
-    echo "Åpnet Claude Desktop. Velg '$1' i Code-fanen (stien er på utklippstavlen)." ;;
-  Auto*)
+    if [[ "$tool" == zcode ]]; then
+      open -a ZCode "$src" 2>/dev/null || open -a ZCode 2>/dev/null
+      osascript -e "display notification \"Åpner $1 i ZCode. Stien ligger også på utklippstavlen.\" with title \"Glaze: Edit $1\"" 2>/dev/null
+      echo "Åpnet ZCode på '$1' (stien er på utklippstavlen)."
+    else
+      open -a Claude
+      osascript -e "display notification \"Velg $1 under Recents i Code-fanen. Stien ligger på utklippstavlen.\" with title \"Glaze: Edit $1\"" 2>/dev/null
+      echo "Åpnet Claude Desktop. Velg '$1' i Code-fanen (stien er på utklippstavlen)."
+    fi ;;
+  auto)
     term="$(launch_in_terminal "$cmd")"
-    echo "Åpnet Claude Code for '$1' i $term (auto)." ;;
+    echo "Åpnet $label for '$1' i $term (auto)." ;;
   *)
-    term="$(GLAZE_TERMINAL="${pick:l}" launch_in_terminal "$cmd")"
-    echo "Åpnet Claude Code for '$1' i $term." ;;
+    term="$(GLAZE_TERMINAL="$where" launch_in_terminal "$cmd")"
+    echo "Åpnet $label for '$1' i $term." ;;
 esac

@@ -1,11 +1,11 @@
 {
   "name": "glaze-coder",
   "version": "0.1.0",
-  "description": "Build, edit, run and debug Glaze (Raycast) desktop apps from Claude Code, using your own Claude subscription instead of Glaze's paid credits. Includes a skill with the Glaze project layout and safety rules, and a launcher that builds locally with the Node runtime Glaze ships.",
+  "description": "Build, edit, run and debug Glaze (Raycast) desktop apps from Claude Code or ZCode, using your own Claude subscription or GLM Coding Plan instead of Glaze's paid credits. Includes a skill with the Glaze project layout and safety rules, and a launcher that builds locally with the Node runtime Glaze ships.",
   "author": {
     "name": "Robert",
     "email": "raakanin@gmail.com"
   },
   "license": "MIT",
-  "keywords": ["glaze", "glaze-app", "glaze-store", "raycast", "desktop-apps", "macos-apps", "vibe-coding", "claude", "claude-code", "anthropic", "app-builder", "code-editing", "no-code"]
+  "keywords": ["glaze", "glaze-app", "glaze-store", "raycast", "desktop-apps", "macos-apps", "vibe-coding", "claude", "claude-code", "anthropic", "zcode", "z-ai", "glm", "app-builder", "code-editing", "no-code"]
 }
