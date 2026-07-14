@@ -6,8 +6,8 @@
 # Glaze-kreditter er Glaze sin INNEBYGDE AI-agent. Denne wrapperen lar deg:
 #   • gå fra ingenting til å kode en ny app med ÉN kommando (`start`)
 #   • lage en HELT NY app uten en eneste kreditt (`new`)
-#   • kjøre DITT EGET kodeverktøy (Claude Code eller ZCode) i app-mappen → 0 kreditter
-#   • bygge/kjøre appen lokalt med Glaze sin medfølgende Node            → 0 kreditter
+#   • kjøre din EGEN `claude` (ditt Claude-abonnement) i app-mappen  → 0 kreditter
+#   • bygge/kjøre appen lokalt med Glaze sin medfølgende Node        → 0 kreditter
 #
 # Glaze sier selv at du eier appen, koden og innholdet. Dette redigerer bare
 # den koden med dine egne verktøy i stedet for Glaze sin betalte agent.
@@ -44,60 +44,6 @@ fi
 # La npm bruke samme policy som Glaze (uten å endre .npmrc)
 [[ -f "$NPMRC" ]] && export NPM_CONFIG_USERCONFIG="$NPMRC"
 
-# --- Kodeverktøy: din egen Claude Code, eller ZCode (z.ai) --------------------
-# Begge kjører på ditt eget abonnement, ikke Glaze-kreditter. Bruker velger.
-#   Velg fast med:  --tool claude|zcode  (eller GLAZE_CODER=claude|zcode)
-ZCODE_CJS="${ZCODE_CJS:-/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs}"
-ZCODE_SKILLS="$HOME/.zcode/skills"
-
-_have_claude() { command -v claude >/dev/null 2>&1; }
-_have_zcode()  { command -v zcode  >/dev/null 2>&1 || [[ -f "$ZCODE_CJS" ]]; }
-
-# Normaliser et verktøynavn til 'claude' eller 'zcode' (tomt hvis ukjent).
-_norm_tool() {
-  case "${1:l}" in
-    claude|cc|claude-code) print -r -- claude ;;
-    zcode|zc|z|z.ai|zai)   print -r -- zcode ;;
-    *) print -r -- "" ;;
-  esac
-}
-
-# Kjør valgt kodeverktøy i en mappe (erstatter prosessen). _exec_coder <tool> <dir> [args...]
-_exec_coder() {
-  local tool="$1" dir="$2"; shift 2
-  cd "$dir"
-  case "$tool" in
-    zcode)
-      if command -v zcode >/dev/null 2>&1; then exec zcode "$@"; else exec node "$ZCODE_CJS" "$@"; fi ;;
-    *) exec claude "$@" ;;
-  esac
-}
-
-# Velg kodeverktøy. Setter $REPLY til claude|zcode.
-# Rekkefølge: eksplisitt GLAZE_CODER > eneste tilgjengelige > spør (hvis TTY) > claude.
-_pick_coder() {
-  local forced="$(_norm_tool "$GLAZE_CODER")"
-  [[ -n "$forced" ]] && { REPLY="$forced"; return; }
-  local c=0 z=0
-  _have_claude && c=1
-  _have_zcode  && z=1
-  if (( ! c && ! z )); then
-    print -u2 "❌ Fant verken 'claude' (Claude Code) eller ZCode. Installer minst ett."
-    exit 1
-  fi
-  (( c && ! z )) && { REPLY=claude; return; }
-  (( z && ! c )) && { REPLY=zcode;  return; }
-  if [[ -t 0 && -t 1 ]]; then
-    print -r -- "Hvilket kodeverktøy? (begge bruker ditt eget abonnement)"
-    print -r -- "  1) Claude Code"
-    print -r -- "  2) ZCode (z.ai)"
-    local ans; read "ans?Velg [1/2] (Enter = 1): "
-    [[ "$ans" == 2* || "${ans:l}" == z* ]] && REPLY=zcode || REPLY=claude
-  else
-    REPLY=claude
-  fi
-}
-
 # --- Hjelpere -----------------------------------------------------------------
 _appmeta() { # <app-dir> -> "productName|name|id"
   local pj="$1/.glaze-sources/package.json"
@@ -126,21 +72,12 @@ _genid() { LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 8; }
 # DIN claude får samme Glaze-kunnskap som Glaze sin egen agent. Idempotent.
 _link_skills() {
   [[ -d "$AR_SKILLS" ]] || return 0
-  local own_skill="${GLAZE_DEV_SELF:h:h}/skills/glaze-app-dev"
-  local targets=("$HOME/.claude/skills")
-  # ZCode (z.ai) bruker samme skill-format i ~/.zcode/skills. Lenk inn hvis den finnes.
-  [[ -d "$HOME/.zcode" ]] && targets+=("$ZCODE_SKILLS")
-  local t s
-  for t in $targets; do
-    mkdir -p "$t"
-    for s in "$AR_SKILLS"/*(/N); do
-      ln -sfn "$s" "$t/${s:t}"
-    done
-    [[ -f "$AR_GUIDE" ]] && ln -sfn "$AR_GUIDE" "$t/GLAZE-APP-GUIDE.md"
-    # I Claude Code kommer glaze-app-dev fra pluginen. ZCode har ingen plugin,
-    # så lenk vår egen skill dit slik at ZCode får samme Glaze-kunnskap.
-    [[ "$t" == "$ZCODE_SKILLS" && -d "$own_skill" ]] && ln -sfn "$own_skill" "$t/glaze-app-dev"
+  mkdir -p "$HOME/.claude/skills"
+  local s
+  for s in "$AR_SKILLS"/*(/N); do
+    ln -sfn "$s" "$HOME/.claude/skills/${s:t}"
   done
+  [[ -f "$AR_GUIDE" ]] && ln -sfn "$AR_GUIDE" "$HOME/.claude/skills/GLAZE-APP-GUIDE.md"
 }
 
 _need() { # <query> -> sets $SRC and $ROOT, or exits
@@ -160,25 +97,72 @@ cmd_list() {
   done
 }
 
-cmd_code() { # åpne DITT kodeverktøy (Claude Code eller ZCode) i app-mappen (gratis iterasjon)
-  local tool=""
-  while [[ "$1" == --* ]]; do
+# --- Agenter (Claude Code, Codex, OpenCode, Gemini, desktop-IDE-er) -----------
+# Er en app installert? (etter bundle-id)
+_app_present() { mdfind "kMDItemCFBundleIdentifier == '$1'" 2>/dev/null | grep -q . ; }
+
+# Bygg en AGENTS.md-bro for agenter som leser den (Codex/OpenCode/Gemini), slik
+# at de får samme Glaze-kontekst som CLAUDE.md gir Claude Code. Idempotent.
+_ensure_agents_md() {
+  local src="$1"
+  [[ -e "$src/AGENTS.md" ]] && return 0
+  [[ -f "$src/CLAUDE.md" ]] && ln -s "CLAUDE.md" "$src/AGENTS.md" 2>/dev/null || true
+}
+
+# Start valgt agent i app-mappen.  $1=agent  $2=kildemappe  resten=prompt
+_launch_agent() {
+  local agent="$1" src="$2"; shift 2
+  local prompt="$*"
+  cd "$src"
+  case "$agent" in
+    claude)
+      _link_skills
+      print -r -- "▶ Claude Code i: $src  (ingen Glaze-kreditter)"
+      [[ -n "$prompt" ]] && exec claude "$prompt" || exec claude ;;
+    codex)
+      _ensure_agents_md "$src"; print -r -- "▶ Codex i: $src"
+      [[ -n "$prompt" ]] && exec codex "$prompt" || exec codex ;;
+    opencode)
+      _ensure_agents_md "$src"; print -r -- "▶ OpenCode i: $src"; exec opencode ;;
+    gemini)
+      _ensure_agents_md "$src"; print -r -- "▶ Gemini i: $src"; exec gemini ;;
+    codex-app)     open -b com.openai.codex "$src"           && print -r -- "▶ Åpnet Codex-appen på mappen" || print -u2 "❌ Fikk ikke åpnet Codex-appen" ;;
+    opencode-app)  open -b ai.opencode.desktop "$src"        && print -r -- "▶ Åpnet OpenCode-appen"        || print -u2 "❌ Fikk ikke åpnet OpenCode-appen" ;;
+    antigravity)   open -b com.google.antigravity-ide "$src" && print -r -- "▶ Åpnet Antigravity IDE på mappen" || print -u2 "❌ Fikk ikke åpnet Antigravity" ;;
+    zcode)         open -b dev.zcode.app "$src"              && print -r -- "▶ Åpnet ZCode på mappen"        || print -u2 "❌ Fikk ikke åpnet ZCode" ;;
+    *) print -u2 "❌ Ukjent agent: $agent  (se: glaze-dev agents)"; exit 1 ;;
+  esac
+}
+
+cmd_code() { # åpne valgt agent i app-mappen (gratis iterasjon)
+  local agent="${GLAZE_AGENT:-claude}"
+  local -a pos
+  while [[ $# -gt 0 ]]; do
     case "$1" in
-      --tool|--with) tool="$(_norm_tool "$2")"; shift 2 ;;
-      --claude|--cc) tool=claude; shift ;;
-      --zcode|--z)   tool=zcode;  shift ;;
-      --)            shift; break ;;
-      *)             break ;;
+      --agent) agent="$2"; shift 2 ;;
+      --claude|--codex|--opencode|--gemini) agent="${1#--}"; shift ;;
+      --codex-app|--opencode-app|--antigravity|--zcode) agent="${1#--}"; shift ;;
+      *) pos+=("$1"); shift ;;
     esac
   done
-  _need "$1"; shift
-  _link_skills
-  if [[ -n "$tool" ]]; then REPLY="$tool"; else _pick_coder; fi
-  local coder="$REPLY"
-  local label="Claude Code"; [[ "$coder" == zcode ]] && label="ZCode"
-  print -r -- "▶ $label i: $SRC"
-  print -r -- "  (bruker ditt eget abonnement, ingen Glaze-kreditter)"
-  _exec_coder "$coder" "$SRC" "$@"
+  _need "${pos[1]}"
+  _launch_agent "$agent" "$SRC" "${pos[2,-1]}"
+}
+
+cmd_agents() {
+  print -r -- "Agenter for:  glaze-dev code <app> --agent <navn>    (standard: claude)"
+  print -r -- ""
+  local a
+  for a in claude codex opencode gemini; do
+    command -v "$a" >/dev/null 2>&1 && printf "  ✓ %-13s CLI\n" "$a" || printf "  - %-13s (ikke funnet)\n" "$a"
+  done
+  _app_present com.openai.codex           && printf "  ✓ %-13s desktop-app\n" "codex-app"
+  _app_present ai.opencode.desktop        && printf "  ✓ %-13s desktop-app\n" "opencode-app"
+  _app_present com.google.antigravity-ide && printf "  ✓ %-13s desktop-IDE (åpner mappen)\n" "antigravity"
+  _app_present dev.zcode.app              && printf "  ✓ %-13s desktop-IDE (åpner mappen)\n" "zcode"
+  print -r -- ""
+  print -r -- "Sett standard agent:  export GLAZE_AGENT=codex   (legg i ~/.zshrc)"
+  print -r -- "Codex/OpenCode/Gemini får Glaze-kontekst via en AGENTS.md-bro i app-mappen."
 }
 
 cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1..."; npm run build; }
@@ -189,11 +173,7 @@ cmd_run()     { _need "$1"; local app=("$ROOT"/*.app(N)); (( ${#app} )) && open 
 cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
 cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
-cmd_skills()  {
-  _link_skills
-  print "✓ Glaze-skills koblet inn i ~/.claude/skills"
-  [[ -d "$HOME/.zcode" ]] && print "✓ Glaze-skills + glaze-app-dev koblet inn i ~/.zcode/skills (ZCode)"
-}
+cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/skills"; }
 
 # Hjelp til Raycast-oppsettet (Raycast har ingen deeplink for å legge til en
 # script-mappe, så dette gjør det så lite som mulig: kopierer stien, åpner Raycast).
@@ -213,21 +193,20 @@ cmd_raycast() {
 # ENKLESTE VEI: fra ingenting til å kode. Lager en blank app (0 kreditter) og
 # hopper rett inn i Claude Code med et startbudskap. Én kommando, ferdig.
 cmd_start() {
-  local tool=""
-  while [[ "$1" == --* ]]; do
+  local agent="${GLAZE_AGENT:-claude}"
+  local -a words
+  while [[ $# -gt 0 ]]; do
     case "$1" in
-      --tool|--with) tool="$(_norm_tool "$2")"; shift 2 ;;
-      --claude|--cc) tool=claude; shift ;;
-      --zcode|--z)   tool=zcode;  shift ;;
-      *)             break ;;
+      --agent) agent="$2"; shift 2 ;;
+      --claude|--codex|--opencode|--gemini) agent="${1#--}"; shift ;;
+      *) words+=("$1"); shift ;;
     esac
   done
-  local prod="$*"
-  [[ -n "$prod" ]] || { print -u2 'Bruk: glaze-dev start [--tool claude|zcode] "<App-navn>"'; exit 1; }
+  local prod="${words[*]}"
+  [[ -n "$prod" ]] || { print -u2 'Bruk: glaze-dev start "<App-navn>" [--agent <navn>]'; exit 1; }
   cmd_new "$prod" --blank --no-open
   local name="$(_slug "$prod")"
-  local msg="Dette er en ny, tom Glaze-app kalt '$prod'. Les den lokale Glaze-guiden og relevante skills, spør meg kort hva appen skal gjøre, og bygg den ut. Kun endringer i .glaze-sources, bygg med 'npm run build', og åpne appen for å vise resultatet."
-  if [[ -n "$tool" ]]; then cmd_code --tool "$tool" "$name" "$msg"; else cmd_code "$name" "$msg"; fi
+  cmd_code "$name" --agent "$agent" "Dette er en ny, tom Glaze-app kalt '$prod'. Les den lokale Glaze-guiden (CLAUDE.md/AGENTS.md) og relevante skills, spør meg kort hva appen skal gjøre, og bygg den ut. Kun endringer i .glaze-sources, bygg med 'npm run build', og åpne appen for å vise resultatet."
 }
 
 # Lag en HELT NY app uten en eneste Glaze-kreditt:
@@ -351,17 +330,16 @@ ENKLESTE VEI (fra ingenting til å kode, én kommando):
   glaze-dev start "Min App"       Lager en tom app (0 kreditter) og åpner Claude
                                   Code der, bare beskriv hva appen skal gjøre.
 
-KODEVERKTØY (begge bruker ditt eget abonnement, ikke Glaze-kreditter):
-  Claude Code eller ZCode (z.ai). `code` og `start` spør når begge finnes.
-  Velg fast:  --tool claude|zcode   (eller sett GLAZE_CODER=claude|zcode)
-
 ALLE KOMMANDOER:
   glaze-dev list                        List alle Glaze-apper
-  glaze-dev start [--tool <t>] "<Navn>" Ny tom app + hopp rett inn i kodeverktøyet
+  glaze-dev start "<Navn>"              Ny tom app + hopp rett inn i Claude Code
   glaze-dev new   "<Navn>" [--from <app>] [--blank] [--no-open]
-                                        Lag en ny app uten kreditter (uten å åpne editor)
-  glaze-dev code  [--tool <t>] <app> [...]
-                                        Åpne kodeverktøyet i app-mappen (gratis)
+                                        Lag en ny app uten kreditter (uten å åpne claude)
+  glaze-dev code   <app> [--agent <navn>] [prompt]
+                                        Åpne app-mappen i en agent (gratis).
+                                        Agenter: claude (standard), codex, opencode,
+                                        gemini, codex-app, opencode-app, antigravity, zcode
+  glaze-dev agents                      List agentene du har installert
   glaze-dev dev    <app>                Dev-server (live reload)
   glaze-dev build  <app>                Bygg (lokalt, gratis)
   glaze-dev run    <app>                Åpne den bygde appen
@@ -372,7 +350,7 @@ ALLE KOMMANDOER:
   glaze-dev finder <app>                Åpne app-mappen i Finder
   glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
   glaze-dev raycast                     Sett opp Raycast (kopier sti + åpne Raycast)
-  glaze-dev skills                      Koble Glaze-skills inn i ~/.claude (og ~/.zcode)
+  glaze-dev skills                      Koble Glaze-skills inn i ~/.claude/skills
 
 <app> matcher på mappenavn eller produktnavn (delvis treff er ok).
 
@@ -389,6 +367,7 @@ case "$cmd" in
   start|go)             cmd_start "$@" ;;
   new|create)           cmd_new "$@" ;;
   code|edit)            cmd_code "$@" ;;
+  agents|agent)         cmd_agents ;;
   dev)                  cmd_dev "$@" ;;
   build)                cmd_build "$@" ;;
   run|open)             cmd_run "$@" ;;
