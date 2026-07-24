@@ -145,6 +145,17 @@ else
 fi
 print ""
 
+# 6. Guided check of the whole setup (Glaze, Claude Code, skills, AI engines).
+print ""
+if [[ -t 0 ]]; then
+  if ask y "Run the setup check now? (verifies Glaze, Claude Code and the AI engines)"; then
+    "$HOME/.local/bin/glaze-dev" setup || true
+  fi
+else
+  print "Tip: run 'glaze-dev setup' for a guided check of the whole setup."
+fi
+
+print ""
 green "Done."
 print "Start a new app now:"
 print '   glaze-dev start "My App"'

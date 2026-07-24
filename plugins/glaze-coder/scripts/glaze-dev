@@ -27,8 +27,14 @@ if [[ -z "$GLAZE_BASE" ]]; then
   done
 fi
 if [[ -z "$GLAZE_BASE" || ! -d "$GLAZE_BASE/apps" ]]; then
-  print -u2 "❌ Fant ikke Glaze. Sett GLAZE_BASE manuelt, eller start Glaze én gang."
-  exit 1
+  # setup/help skal kunne veilede selv uten Glaze installert.
+  case "${1:-}" in
+    setup|doctor|help|-h|--help|"") GLAZE_BASE="" ;;
+    *)
+      print -u2 "❌ Fant ikke Glaze. Sett GLAZE_BASE manuelt, eller start Glaze én gang."
+      print -u2 "   Ny her? Kjør: glaze-dev setup"
+      exit 1 ;;
+  esac
 fi
 
 APPS_DIR="$GLAZE_BASE/apps"
@@ -206,6 +212,98 @@ cmd_run()     { _need "$1"; local app=("$ROOT"/*.app(N)); (( ${#app} )) && open 
 cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
 cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
+
+# Interaktiv onboarding og helsesjekk: verifiser hele oppsettet steg for steg,
+# forklar AI-motorvalgene, og pek på neste steg der noe mangler. Trygg å kjøre
+# når som helst; endrer ingenting uten å spørre.
+cmd_setup() {
+  local pass="%F{green}✓%f" fail="%F{red}✗%f" note="%F{yellow}!%f"
+  print -P "%B== glaze-dev setup: onboarding og helsesjekk ==%b"
+  print ""
+
+  # 1) Maskin
+  if [[ "$(uname -m)" == arm64 ]]; then
+    print -P "$pass Apple Silicon-Mac"
+  else
+    print -P "$fail Krever Apple Silicon (arm64). Denne maskinen: $(uname -m)"
+  fi
+
+  # 2) Glaze selv
+  if [[ -n "$GLAZE_BASE" && -d "$GLAZE_BASE/apps" ]]; then
+    local napps; napps="$(ls -1 "$APPS_DIR" 2>/dev/null | wc -l | tr -d ' ')"
+    print -P "$pass Glaze er installert ($napps app(er))"
+    if (( napps == 0 )); then
+      print "   Neste steg: lag din første app -> glaze-dev start \"Min App\""
+    fi
+  else
+    print -P "$fail Glaze er ikke installert (eller aldri startet)."
+    print "   Last ned fra https://www.glaze.app, åpne den én gang, og kjør setup igjen."
+    print ""
+    print "Resten av sjekkene hopper vi over til Glaze er på plass."
+    return 0
+  fi
+
+  # 3) Medfølgende Node (kreves for gratis bygg)
+  if command -v node >/dev/null 2>&1 && [[ "$(node -v 2>/dev/null)" == v2[4-9]* ]]; then
+    print -P "$pass Node $(node -v) (Glaze sin medfølgende runtime)"
+  else
+    print -P "$note Fant ikke Glaze sin Node >= 24 på PATH. Bygg kan feile."
+    print "   Den følger med Glaze; åpne Glaze én gang så lastes den ned."
+  fi
+
+  # 4) Claude Code (gratis utvikling via ditt abonnement)
+  if command -v claude >/dev/null 2>&1; then
+    print -P "$pass Claude Code $(claude --version 2>/dev/null | head -1)"
+    print "   NB: --version beviser ikke innlogging. Aldri logget inn? Kjør: claude"
+  else
+    print -P "$fail Claude Code er ikke installert."
+    print "   Installer fra https://claude.com/product/claude-code og kjør 'claude' for innlogging."
+    print "   Uten den koster utvikling Glaze-kreditter; med den er den gratis via abonnementet ditt."
+  fi
+
+  # 5) Glaze-skills lenket inn i ~/.claude
+  local nlinked=0
+  [[ -d "$HOME/.claude/skills" ]] && nlinked="$(ls -1 "$HOME/.claude/skills" 2>/dev/null | grep -c "^glaze" || true)"
+  if (( nlinked > 5 )); then
+    print -P "$pass Glaze-skills lenket inn i ~/.claude/skills ($nlinked stk)"
+  else
+    print -P "$note Glaze-skills ser ikke ut til å være lenket."
+    if [[ -t 0 ]]; then
+      read "ans?   Lenke dem nå? [Y/n]: "
+      [[ -z "$ans" || "$ans" == [Yy]* ]] && { _link_skills; print -P "$pass Lenket."; }
+    else
+      print "   Kjør: glaze-dev skills"
+    fi
+  fi
+
+  # 6) Claude Code-plugin
+  if command -v claude >/dev/null 2>&1; then
+    if claude plugin list 2>/dev/null | grep -q "glaze-coder"; then
+      print -P "$pass Claude Code-pluginen (/glaze-coder:glaze) er installert"
+    else
+      print -P "$note Claude Code-pluginen mangler. Kjør: claude plugin install glaze-coder"
+    fi
+  fi
+
+  # 7) Raycast (valgfritt)
+  if [[ -d "/Applications/Raycast.app" || -d "$HOME/Applications/Raycast.app" ]]; then
+    print -P "$pass Raycast finnes. Kommandoer settes opp med: glaze-dev raycast"
+  else
+    print -P "$note Raycast ikke funnet (valgfritt). Kommandoene virker fint uten."
+  fi
+
+  # 8) AI i appene dine
+  print ""
+  print -P "%BAI-motorer i appene du bygger:%b"
+  print "  Apper laget med glaze-coder gir sluttbrukeren et valg om AI skal koste noe:"
+  print "  - Glaze AI       innebygd, null oppsett, bruker brukerens Glaze-kreditter"
+  print "  - Google Gemini  gratis med egen nøkkel (https://aistudio.google.com/apikey)"
+  print "  - OpenRouter     gratis modeller med egen nøkkel (lav dagskvote)"
+  print "  - Claude Code    gratis via brukerens Claude-abonnement (lokal CLI)"
+  print "  Tomme Glaze-kreditter? Reservemotoren bytter automatisk til en gratis motor."
+  print ""
+  print -P "%BKlar. Neste steg:%b  glaze-dev start \"Min App\"    (ny app + Claude Code, 0 kreditter)"
+}
 
 # Les ut koede (pausede) prompts fra Glaze-vibekoderens chatvindu for en app.
 # Koen finnes bare i Glaze-UIets minne (ikke i db/localStorage), så vi leser den
@@ -442,6 +540,7 @@ ALLE KOMMANDOER:
   glaze-dev finder <app>                Åpne app-mappen i Finder
   glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
   glaze-dev raycast                     Sett opp Raycast (kopier sti + åpne Raycast)
+  glaze-dev setup                       Onboarding/helsesjekk av hele oppsettet
   glaze-dev skills                      Koble Glaze-skills inn i ~/.claude/skills
 
 <app> matcher på mappenavn eller produktnavn (delvis treff er ok).
@@ -471,6 +570,7 @@ case "$cmd" in
   finder|reveal)        cmd_finder "$@" ;;
   rm|delete|remove)     cmd_rm "$@" ;;
   raycast|raycast-setup) cmd_raycast "$@" ;;
+  setup|doctor)         cmd_setup "$@" ;;
   skills|link-skills)   cmd_skills ;;
   help|-h|--help)       cmd_help ;;
   *) print -u2 "Ukjent kommando: $cmd"; cmd_help; exit 1 ;;

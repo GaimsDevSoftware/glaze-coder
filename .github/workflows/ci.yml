@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check shell scripts
+        run: |
+          zsh -n install.sh
+          zsh -n plugins/glaze-coder/scripts/glaze-dev
+          zsh -n plugins/glaze-coder/scripts/terminal-launch.sh
+          for f in plugins/glaze-coder/scripts/raycast/*.sh; do zsh -n "$f"; done
+
+      - name: Typography scan (plain punctuation only)
+        run: |
+          git ls-files -z | tr '\0' '\n' | grep -vE '\.(png|gif|ico|icns)$' > /tmp/files.txt
+          perl -CSD -ne 'if (/[\x{2014}\x{2013}\x{2026}\x{201C}\x{201D}\x{2018}\x{2019}\x{00A0}]/) { print "$ARGV:$.: smart punctuation\n"; $bad = 1 } END { exit 1 if $bad }' $(cat /tmp/files.txt)
+
+      - name: Skills have frontmatter
+        run: |
+          for f in plugins/glaze-coder/skills/*/SKILL.md; do
+            head -1 "$f" | grep -q '^---$' || { echo "Missing frontmatter: $f"; exit 1; }
+          done
+
+      - name: Plugin manifest is valid JSON
+        run: python3 -m json.tool plugins/glaze-coder/.claude-plugin/plugin.json > /dev/null

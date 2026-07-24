@@ -14,6 +14,23 @@ Node runtime Glaze already ships. Editing and building cost you nothing in Glaze
 ![macOS](https://img.shields.io/badge/macOS-Tahoe%2B-black)
 ![Apple Silicon](https://img.shields.io/badge/Apple%20Silicon-required-black)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![CI](https://github.com/GaimsDevSoftware/glaze-coder/actions/workflows/ci.yml/badge.svg)
+
+## Why glaze-coder
+
+- **Development costs 0 Glaze credits.** Glaze's built-in agent spends credits for
+  every change. glaze-coder does the same work with the Claude subscription you
+  already pay for: create, code, build and run apps for free.
+- **Your app users choose whether AI costs them anything.** Apps built with
+  glaze-coder ship with an engine picker: built-in Glaze AI (their credits), a free
+  Google Gemini key, OpenRouter free models, or their own Claude subscription via
+  the local CLI. When Glaze credits run out, the app switches to a configured free
+  engine on its own.
+- **Pick up where Glaze's agent stopped.** Ran out of credits mid-task? Continue in
+  Claude Code with full project context, and pull the paused prompt queue straight
+  out of the Glaze window with `glaze-dev queue`.
+- **Not locked to one agent.** Works with codex, opencode, gemini and the desktop
+  apps too.
 
 ## What you get
 
@@ -53,6 +70,13 @@ Then create your first app and jump straight into Claude Code:
 
 ```bash
 glaze-dev start "Habit Tracker"
+```
+
+The installer ends with a guided check of the whole setup. You can rerun it any
+time to see what is installed, what is missing, and what to do next:
+
+```bash
+glaze-dev setup
 ```
 
 That is all most people need. The sections below show the individual methods if you
@@ -110,6 +134,8 @@ glaze-dev run   <app>        Open the built app
 glaze-dev br    <app>        Build then run
 glaze-dev rm    <app>        Remove an app (bundle, source, profile)
 glaze-dev agents             List the coding agents you have installed
+glaze-dev setup              Guided check of the whole setup
+glaze-dev queue <app>        Read the paused prompt queue out of the Glaze window
 ```
 
 `<app>` matches on the folder name or product name, so partial names work.
