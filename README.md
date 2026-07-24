@@ -22,6 +22,10 @@ Node runtime Glaze already ships. Editing and building cost you nothing in Glaze
   with your own Glaze install, so it stays current with your version. That includes the
   newer SDK APIs: built-in AI (`glaze.capabilities.ai`), apps as MCP servers, local
   Claude Code CLI integration, and native icons and thumbnails.
+- A **skill** (`glaze-byok-ai`) that makes AI apps built with this plugin give the end
+  user an engine choice: built-in Glaze AI (uses their Glaze credits) or their own free
+  API key (Google Gemini free tier, optionally OpenRouter). Users decide whether using
+  the app costs them anything.
 - A **command** (`/glaze-coder:glaze`) that lists your apps and starts building.
 - A **launcher** (`glaze-dev`) for the terminal and Raycast, with commands to create,
   edit, build, run and remove apps.

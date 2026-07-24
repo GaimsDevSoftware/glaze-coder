@@ -72,6 +72,11 @@ Each Glaze install ships its own always-current guide + skills. Read them before
   `useGlazeAI` hook in the renderer, and pick a grade (`"fast"`/`"smart"`/`"powerful"`), never
   a raw model id. Glaze owns consent/credits/blocked-state UI. Do not trigger AI calls just to
   verify a build. Details: `glaze-ai`.
+  **Default for apps built with this plugin: give the end user an AI engine choice.** Whenever
+  you add an AI feature, also implement the engine picker from this plugin's `glaze-byok-ai`
+  skill (Glaze AI as default + the user's own free Gemini key, optionally OpenRouter), so users
+  decide whether using the app costs them anything. Skip it only if the user building the app
+  asks for Glaze-only AI, or the app targets Claude Code users (`glaze-claude-cli`).
 - **Local Claude Code CLI**: an app can call the user's own Claude Code subscription via
   `claude -p`. Backend only, no credential collection. Details: `glaze-claude-cli`.
 - **App as MCP server**: give an app MCP tools so outside agents can read/write its data.
