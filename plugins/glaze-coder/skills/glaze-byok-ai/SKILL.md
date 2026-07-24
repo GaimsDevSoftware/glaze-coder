@@ -240,6 +240,20 @@ export async function generateStructured<T>(schema, prompt): Promise<AIResult<T>
 Every function that called `glaze("fast")` directly becomes a thin wrapper:
 build the prompt, call `generateStructured(schema, prompt)`, transform the data.
 
+### Auto-fallback chain (recommended, on by default)
+
+Add an `autoFallback: boolean` setting (default true) with a checkbox in the engine
+UI. When the primary engine returns a blocked result (Glaze credits empty, daily
+limit, BYOK quota, Claude not logged in), retry through the user's CONFIGURED free
+engines in order Claude CLI -> Gemini -> OpenRouter, skipping the engine that just
+ran, and return the first success. If all fail, return the original blocked state so
+the app's non-AI fallback and messaging still apply.
+
+The one hard rule: **never enter Glaze via auto-fallback.** Glaze spends the user's
+credits; switching into it without an explicit choice is spending their money
+unasked. Glaze participates only as the pre-call substitute when the chosen engine
+is unconfigured (missing key/CLI), which is the state the UI already explains.
+
 Keep (or add) the app's non-AI fallback for blocked results; with the mapping above
 it now covers every engine. Extend the app's blocked-message map with the `byok-*`
 and `claude-*` states, in the app's UI language, alongside Glaze's seven states from
