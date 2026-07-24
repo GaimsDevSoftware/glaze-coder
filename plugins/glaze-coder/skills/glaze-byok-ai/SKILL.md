@@ -1,27 +1,28 @@
 ---
 name: glaze-byok-ai
-description: Give Glaze app users a choice of AI engine - built-in Glaze AI (zero setup, uses their Glaze credits) or their own free API key (Google Gemini free tier, optionally OpenRouter free models). Use whenever an app built with glaze-coder gets an AI feature, so end users can decide whether using the app costs them anything. Covers the provider service, encrypted key storage, IPC handlers, settings UI, and blocked-state fallback.
+description: Give Glaze app users a choice of AI engine - built-in Glaze AI (zero setup, uses their Glaze credits), their own free API key (Google Gemini free tier, optionally OpenRouter free models), or their local Claude Code CLI (their Claude subscription). Use whenever an app built with glaze-coder gets an AI feature, so end users can decide whether using the app costs them anything. Covers the provider service, encrypted key storage, the Claude CLI engine, IPC handlers, settings UI, and blocked-state fallback.
 ---
 
 # User-selectable AI engine for Glaze apps (Glaze AI or BYOK)
 
 Default policy for apps built with glaze-coder: when an app calls AI, the end user
 gets to pick the engine. Glaze AI works with zero setup but spends the user's Glaze
-credits; a bring-your-own-key engine is free for them (Gemini has a real free tier).
-Implement this choice unless the user building the app explicitly wants Glaze-only,
-or the app targets users known to have Claude Code (then see `glaze-claude-cli`).
+credits; a bring-your-own-key engine is free for them (Gemini has a real free tier);
+the local Claude Code CLI is free for users who already pay for a Claude subscription.
+Implement this choice unless the user building the app explicitly wants Glaze-only.
 
-Reference implementation: the News Flow app (`ai-provider.ts` + "AI-motor" settings
-section + onboarding engine step). This file contains everything needed to reproduce
-it in any app.
+Reference implementation: the News Flow app (`ai-provider.ts` + `claude-cli.ts` +
+"AI-motor" settings section + onboarding engine step). This file contains everything
+needed to reproduce it in any app.
 
-## The three engines
+## The four engines
 
 | Engine | Cost for the user | Setup | Notes |
 | --- | --- | --- | --- |
 | `glaze` (default) | Glaze credits | none | Always the default and the fallback |
 | `gemini` | free | paste a free AI Studio key | ~250 calls/day free tier; recommended free option |
 | `openrouter` | free | paste an OpenRouter key | ~50 calls/day unfunded; `openrouter/free` auto-routes; optional third choice |
+| `claude` | free with a Claude subscription | Claude Code installed + logged in | For users known to have Claude Code; settings-only, slower (seconds to a minute per call) |
 
 Rules that keep this correct and honest:
 
@@ -39,6 +40,11 @@ Rules that keep this correct and honest:
   verify with type-check and build only.
 - Do not put pricing copy next to AI controls beyond the engine descriptions; Glaze's
   own consent UI explains credits.
+- The Claude engine spawns the user's own `claude` CLI (subscription login). Never
+  collect Anthropic API keys, OAuth tokens, or Claude credential files for it, and
+  never persist `CLAUDE_CODE_OAUTH_TOKEN`. Offer it to audiences known to have Claude
+  Code; keep it in full settings, not onboarding. Detection gates the UI state (a
+  found/not-found badge), and a missing CLI falls back to Glaze like a missing key.
 
 ## Dependencies
 
@@ -177,24 +183,66 @@ export async function testProvider(provider: AIProviderId): Promise<{ ok: boolea
 }
 ```
 
-## Wire the app's AI call sites
+## The Claude engine: `main/services/claude-cli.ts`
 
-Every function that called `glaze("fast")` directly changes to:
+Spawns the user's local Claude Code CLI for structured output. Follow the
+`glaze-claude-cli` skill for the full binary-resolution, spawn, env-scrubbing, and
+JSON-parsing recipes; the engine-specific decisions are:
+
+- Extend the provider id union with `"claude"` and add a `hasClaudeCli` flag to the
+  settings view (cached `resolveClaudeBinary()` check: the skill's candidate paths,
+  then `zsh -lc "command -v claude"`).
+- One call shape: `claudeGenerateJson(prompt, jsonSchema, timeoutMs = 120_000)`.
+  Direct spawn with the prompt on stdin and args `-p <instruction> --output-format
+  json --json-schema <schema> --tools "" --no-session-persistence`, env scrubbed of
+  API-key/gateway vars. Parse `structured_output` from the JSON envelope, falling
+  back to `JSON.parse(envelope.result)` with markdown fences stripped.
+- GUI processes sometimes cannot reach the Terminal login/keychain session. On login
+  errors only, retry once through a pseudo-terminal via `/usr/bin/script -q /dev/null
+  <bin> ...`. The prompt moves into the `-p` argument there (pty stdin is echoed into
+  stdout and would pollute parsing); cap it around 200k chars. This avoids a node-pty
+  dependency; upgrade to the `glaze-claude-cli` node-pty recipe only if this proves
+  insufficient on real machines.
+- Typed failures: `claude-not-installed`, `claude-not-logged-in`, `claude-error`.
+- The JSON Schema comes from the app's zod schema via `z.toJSONSchema(schema)` (the
+  SDK bundles zod v4; `z` is re-exported by `@glaze/core/ai`).
+
+## Wire the app's AI call sites through one entry point
+
+Give `ai-provider.ts` a single function the rest of the backend uses, so call sites
+never branch on engine:
 
 ```typescript
-const { provider, model } = await resolveModel();
-try {
-  const { object } = await generateObject({ model, /* schema, prompt as before */ });
-} catch (error) {
-  if (error instanceof GlazeAIError) return { ok: false, blocked: error.state };
-  if (provider !== "glaze") return { ok: false, blocked: byokBlockedState(error) };
-  throw error;
+export async function generateStructured<T>(schema, prompt): Promise<AIResult<T>> {
+  const settings = await loadSettings();
+  if (settings.provider === "claude" && (await hasClaudeCli())) {
+    try {
+      const raw = await claudeGenerateJson(prompt, z.toJSONSchema(schema));
+      const parsed = schema.safeParse(raw);
+      if (parsed.success) return { ok: true, data: parsed.data };
+      return { ok: false, blocked: "claude-error" };
+    } catch (error) {
+      return { ok: false, blocked: error instanceof ClaudeCliError ? error.state : "claude-error" };
+    }
+  }
+  const { provider, model } = await resolveModel();
+  try {
+    const { object } = await generateObject({ model, schema, prompt });
+    return { ok: true, data: object };
+  } catch (error) {
+    if (error instanceof GlazeAIError) return { ok: false, blocked: error.state };
+    if (provider !== "glaze") return { ok: false, blocked: byokBlockedState(error) };
+    throw error;
+  }
 }
 ```
 
+Every function that called `glaze("fast")` directly becomes a thin wrapper:
+build the prompt, call `generateStructured(schema, prompt)`, transform the data.
+
 Keep (or add) the app's non-AI fallback for blocked results; with the mapping above
-it now covers every engine. Extend the app's blocked-message map with the four
-`byok-*` states, in the app's UI language, alongside Glaze's seven states from
+it now covers every engine. Extend the app's blocked-message map with the `byok-*`
+and `claude-*` states, in the app's UI language, alongside Glaze's seven states from
 `glaze-ai` (example: "byok-invalid-key": "The API key was rejected. Check it in
 settings.").
 
