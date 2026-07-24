@@ -47,18 +47,30 @@ Node runtime Glaze already ships. Editing and building cost you nothing in Glaze
 - A **launcher** (`glaze-dev`) for the terminal and Raycast, with commands to create,
   edit, build, run and remove apps.
 
-## Requirements
+## Requirements and auto-setup
 
-- macOS (Tahoe or newer) on Apple Silicon, with Glaze installed and at least one app.
-- [Claude Code](https://claude.com/product/claude-code) installed (`claude` on your PATH).
+The installer does as much as it safely can for you:
+
+- installs `glaze-dev` onto your PATH
+- links Glaze's skills into Claude Code/ZCode when Glaze has downloaded them
+- installs the Claude Code plugin when `claude` is available
+- can install Claude Code with `npm` when you run the interactive setup
+- falls back to a `curl`/`tar` download when `git` is missing
+
+Some requirements still need you because they involve a signed app, first-run setup,
+or account login:
+
+- macOS (Tahoe or newer) on Apple Silicon
+- [Glaze](https://www.glaze.app) installed, opened once, and with at least one app
+- [Claude Code](https://claude.com/product/claude-code) installed and logged in if you
+  want free local development through your Claude subscription
 
 ## Install
 
 ### Quick install (one command)
 
-Paste this into a terminal. It clones the repo, links `glaze-dev` onto your PATH, links
-Glaze's skills into `~/.claude`, and installs the Claude Code plugin if `claude` is
-present. Nothing else to set up.
+Paste this into a terminal. It installs `glaze-dev`, sets up everything it can
+automatically, and then tells you clearly about any manual requirement that remains.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/install.sh | zsh
@@ -73,7 +85,8 @@ glaze-dev start "Habit Tracker"
 ```
 
 The installer ends with a guided check of the whole setup. You can rerun it any
-time to see what is installed, what is missing, and what to do next:
+time to auto-fix safe local pieces, see what is installed, and see exactly what
+still needs you:
 
 ```bash
 glaze-dev setup

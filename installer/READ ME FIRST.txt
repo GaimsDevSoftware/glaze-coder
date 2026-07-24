@@ -19,15 +19,24 @@ What you can choose:
 
   Claude Code plugin             (recommended)
       Adds the /glaze-coder:glaze command inside Claude Code.
+      If Claude Code is missing and npm is available, setup can install it for you.
 
   Raycast commands               (optional)
       Buttons in Raycast to make, build and edit apps without a terminal.
       Only useful if you have Raycast.
 
-What you need first:
+What the installer/setup can fix automatically:
+
+  - install the glaze-dev command
+  - download glaze-coder even when git is missing (using curl/tar)
+  - link Glaze skills when Glaze has downloaded them
+  - install the Claude Code plugin when Claude Code is available
+  - offer to install Claude Code with npm
+
+What still needs you:
 
   - macOS (Tahoe or newer) on Apple Silicon
-  - Glaze installed, with at least one app
-  - Claude Code installed (for the plugin part)
+  - Glaze installed, opened once, with at least one app
+  - Claude Code logged in (for free local development through your subscription)
 
 More help: https://github.com/GaimsDevSoftware/glaze-coder

@@ -213,12 +213,40 @@ cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
 cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
 
+_setup_ask() {
+  local def="$1" prompt="$2" ans
+  if [[ ! -t 0 ]]; then
+    case "${GLAZE_CLAUDE:-}" in
+      1|true|yes) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+  local hint="[y/N]"; [[ "$def" == y ]] && hint="[Y/n]"
+  read "ans?   $prompt $hint: "
+  [[ -z "$ans" ]] && ans="$def"
+  [[ "$ans" == [Yy]* ]]
+}
+
+_install_claude_code() {
+  command -v npm >/dev/null 2>&1 || return 1
+  print "   Installing Claude Code with npm..."
+  npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+}
+
+_install_claude_plugin() {
+  command -v claude >/dev/null 2>&1 || return 1
+  claude plugin marketplace add GaimsDevSoftware/glaze-coder >/dev/null 2>&1 || true
+  claude plugin install glaze-coder >/dev/null 2>&1 \
+    || claude plugin install glaze-coder@glaze-coder-marketplace >/dev/null 2>&1
+}
+
 # Interactive onboarding and health check: verifies the whole setup step by
-# step, explains the AI engine choices, and points at the next step wherever
-# something is missing. Safe to run any time; changes nothing without asking.
+# step, auto-fixes the safe local pieces, explains the AI engine choices, and
+# points at the next step wherever something still needs the user.
 cmd_setup() {
   local pass="%F{green}✓%f" fail="%F{red}✗%f" note="%F{yellow}!%f"
-  print -P "%B== glaze-dev setup: onboarding and health check ==%b"
+  local ready=1
+  print -P "%B== glaze-dev setup: requirements, auto-fix and health check ==%b"
   print ""
 
   # 1) Machine
@@ -226,6 +254,7 @@ cmd_setup() {
     print -P "$pass Apple Silicon Mac"
   else
     print -P "$fail Apple Silicon (arm64) is required. This machine: $(uname -m)"
+    ready=0
   fi
 
   # 2) Glaze itself
@@ -233,22 +262,29 @@ cmd_setup() {
     local napps; napps="$(ls -1 "$APPS_DIR" 2>/dev/null | wc -l | tr -d ' ')"
     print -P "$pass Glaze is installed ($napps app(s))"
     if (( napps == 0 )); then
-      print "   Next step: create your first app -> glaze-dev start \"My App\""
+      print -P "$note Glaze has no apps yet."
+      print "   Requirement: create one app in Glaze first, then run setup again."
+      ready=0
     fi
   else
     print -P "$fail Glaze is not installed (or has never been opened)."
-    print "   Download it from https://www.glaze.app, open it once, then run setup again."
-    print ""
-    print "Skipping the remaining checks until Glaze is in place."
-    return 0
+    if [[ -d "/Applications/Glaze.app" || -d "$HOME/Applications/Glaze.app" ]]; then
+      print "   Glaze.app exists, but its data/runtime is not ready yet."
+      print "   Opening Glaze now. Finish onboarding there, then run: glaze-dev setup"
+      open -a Glaze 2>/dev/null || true
+    else
+      print "   Requirement: install Glaze from https://www.glaze.app, open it once, and create at least one app."
+    fi
+    ready=0
   fi
 
   # 3) Bundled Node (required for free local builds)
   if command -v node >/dev/null 2>&1 && [[ "$(node -v 2>/dev/null)" == v2[4-9]* ]]; then
     print -P "$pass Node $(node -v) (Glaze's bundled runtime)"
   else
-    print -P "$note Could not find Glaze's Node >= 24 on PATH. Builds may fail."
-    print "   It ships with Glaze; open Glaze once and it downloads."
+    print -P "$fail Could not find Glaze's Node >= 24 on PATH."
+    print "   Requirement: open Glaze once and let it finish downloading its runtime."
+    ready=0
   fi
 
   # 4) Claude Code (free development on your subscription)
@@ -257,8 +293,21 @@ cmd_setup() {
     print "   Note: --version does not prove login. Never logged in? Run: claude"
   else
     print -P "$fail Claude Code is not installed."
-    print "   Install it from https://claude.com/product/claude-code and run 'claude' to log in."
-    print "   Without it, development costs Glaze credits; with it, it is free on your subscription."
+    if _setup_ask y "Install Claude Code now with npm?"; then
+      if _install_claude_code && command -v claude >/dev/null 2>&1; then
+        print -P "$pass Installed Claude Code"
+        print "   Requirement after install: run 'claude' once to log in."
+        ready=0
+      else
+        print -P "$fail Could not install Claude Code automatically."
+        print "   Requirement: install it from https://claude.com/product/claude-code and run 'claude' to log in."
+        ready=0
+      fi
+    else
+      print "   Requirement: install it from https://claude.com/product/claude-code and run 'claude' to log in."
+      print "   Without it, development costs Glaze credits; with it, it is free on your subscription."
+      ready=0
+    fi
   fi
 
   # 5) Glaze skills linked into ~/.claude
@@ -267,12 +316,21 @@ cmd_setup() {
   if (( nlinked > 5 )); then
     print -P "$pass Glaze skills linked into ~/.claude/skills ($nlinked)"
   else
-    print -P "$note The Glaze skills do not seem to be linked."
-    if [[ -t 0 ]]; then
-      read "ans?   Link them now? [Y/n]: "
-      [[ -z "$ans" || "$ans" == [Yy]* ]] && { _link_skills; print -P "$pass Linked."; }
+    if [[ -d "$AR_SKILLS" ]]; then
+      print -P "$note Glaze skills were missing; linking them now."
+      _link_skills
+      nlinked=0
+      [[ -d "$HOME/.claude/skills" ]] && nlinked="$(ls -1 "$HOME/.claude/skills" 2>/dev/null | grep -c "^glaze" || true)"
+      if (( nlinked > 5 )); then
+        print -P "$pass Linked Glaze skills into ~/.claude/skills ($nlinked)"
+      else
+        print -P "$fail Could not link Glaze skills"
+        ready=0
+      fi
     else
-      print "   Run: glaze-dev skills"
+      print -P "$note Glaze skills are not available yet."
+      print "   Requirement: open Glaze once so it downloads agent resources, then run: glaze-dev setup"
+      ready=0
     fi
   fi
 
@@ -281,7 +339,14 @@ cmd_setup() {
     if claude plugin list 2>/dev/null | grep -q "glaze-coder"; then
       print -P "$pass The Claude Code plugin (/glaze-coder:glaze) is installed"
     else
-      print -P "$note The Claude Code plugin is missing. Run: claude plugin install glaze-coder"
+      print -P "$note The Claude Code plugin is missing; installing it now."
+      if _install_claude_plugin; then
+        print -P "$pass Installed the Claude Code plugin (/glaze-coder:glaze)"
+      else
+        print -P "$fail Could not install the Claude Code plugin automatically."
+        print "   Requirement: run: claude plugin install glaze-coder"
+        ready=0
+      fi
     fi
   fi
 
@@ -302,7 +367,16 @@ cmd_setup() {
   print "  - Claude Code    free through the user's Claude subscription (local CLI)"
   print "  Out of Glaze credits? The backup engine switches to a configured free engine."
   print ""
-  print -P "%BReady. Next step:%b  glaze-dev start \"My App\"    (new app + Claude Code, 0 credits)"
+  if (( ready )); then
+    print -P "%BReady. Next step:%b  glaze-dev start \"My App\"    (new app + Claude Code, 0 credits)"
+  else
+    print -P "%BStill required before everything works:%b"
+    print "  - Glaze installed, opened once, and with at least one app"
+    print "  - Glaze runtime/agent resources downloaded by Glaze"
+    print "  - Claude Code installed and logged in for free local development"
+    print ""
+    print "Run this again any time: glaze-dev setup"
+  fi
 }
 
 # Les ut koede (pausede) prompts fra Glaze-vibekoderens chatvindu for en app.

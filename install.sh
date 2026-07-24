@@ -8,16 +8,19 @@
 #   ./install.sh
 #
 # It always installs the core glaze-dev command. When run in a terminal it asks
-# which extra parts you want. Piped from curl it installs everything.
+# which extra parts you want. Piped from curl it installs everything that can be
+# installed safely without an interactive account/login step.
 #
 # You can also pick parts without being asked, by setting any of these to 1 or 0:
 #   GLAZE_SKILLS=1   Glaze skills for Claude Code
+#   GLAZE_CLAUDE=1   Try to install Claude Code with npm when it is missing
 #   GLAZE_PLUGIN=1   Claude Code plugin (/glaze-coder:glaze)
 #   GLAZE_RAYCAST=1  Open Raycast to finish adding its commands
 emulate -L zsh
 setopt pipe_fail 2>/dev/null
 
 REPO_URL="https://github.com/GaimsDevSoftware/glaze-coder.git"
+ARCHIVE_URL="https://github.com/GaimsDevSoftware/glaze-coder/archive/refs/heads/main.tar.gz"
 green() { print -P "%F{green}$1%f"; }
 warn()  { print -P "%F{yellow}$1%f"; }
 head()  { print -P "%F{cyan}%B$1%b%f"; }
@@ -45,19 +48,73 @@ want() {
   ask "$def" "$prompt"
 }
 
+add_glaze_node_to_path() {
+  local base="" cand
+  for cand in \
+    "$HOME/Library/Application Support/app.glaze.macos.main" \
+    "$HOME/Library/Application Support/"app.glaze.macos.*(/N) ; do
+    [[ -d "$cand/node/runtime" ]] && { base="$cand"; break; }
+  done
+  [[ -n "$base" ]] || return 0
+  local bins=("$base"/node/runtime/*/bin(N))
+  (( ${#bins} )) && export PATH="${bins[1]}:$PATH"
+}
+
+install_claude_code() {
+  command -v npm >/dev/null 2>&1 || return 1
+  print "  Installing Claude Code with npm..."
+  npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+}
+
+bootstrap_repo() {
+  local target="$1"
+  if [[ -d "$target/.git" ]]; then
+    print "Updating existing $target ..."
+    if command -v git >/dev/null 2>&1; then
+      git -C "$target" pull --quiet --ff-only || warn "Could not update, using existing copy."
+    else
+      warn "git is not installed; using existing copy."
+    fi
+    return 0
+  fi
+
+  if [[ -d "$target/plugins/glaze-coder" ]]; then
+    warn "Using existing $target (git is not available to update it)."
+    return 0
+  fi
+
+  if command -v git >/dev/null 2>&1; then
+    print "Cloning glaze-coder into $target ..."
+    git clone --quiet "$REPO_URL" "$target" || return 1
+    return 0
+  fi
+
+  if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
+    print "git is not installed; downloading glaze-coder as an archive..."
+    local tmp; tmp="$(mktemp -d)" || return 1
+    mkdir -p "${target:h}"
+    curl -fsSL "$ARCHIVE_URL" -o "$tmp/glaze-coder.tar.gz" || { rm -rf "$tmp"; return 1; }
+    tar -xzf "$tmp/glaze-coder.tar.gz" -C "$tmp" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$target"
+    mv "$tmp/glaze-coder-main" "$target" || { rm -rf "$tmp"; return 1; }
+    rm -rf "$tmp"
+    return 0
+  fi
+
+  print -u2 "Could not download glaze-coder automatically."
+  print -u2 "Requirement: install git or curl, then run the installer again."
+  return 1
+}
+
+add_glaze_node_to_path
+
 # 1. Find the repo, or clone it if we are running standalone (piped from curl).
 SELF_DIR="${0:A:h}"
 if [[ -f "$SELF_DIR/plugins/glaze-coder/scripts/glaze-dev" ]]; then
   REPO="$SELF_DIR"
 else
   REPO="$HOME/glaze-coder"
-  if [[ -d "$REPO/.git" ]]; then
-    print "Updating existing $REPO ..."
-    git -C "$REPO" pull --quiet --ff-only || warn "Could not update, using existing copy."
-  else
-    print "Cloning glaze-coder into $REPO ..."
-    git clone --quiet "$REPO_URL" "$REPO" || { print -u2 "Clone failed. Is git installed?"; exit 1; }
-  fi
+  bootstrap_repo "$REPO" || { print -u2 "Install failed. See the requirement above."; exit 1; }
 fi
 
 LAUNCHER="$REPO/plugins/glaze-coder/scripts/glaze-dev"
@@ -113,9 +170,20 @@ head "Claude Code plugin  (recommended)"
 print "  Adds the /glaze-coder:glaze command inside Claude Code, which lists your apps"
 print "  and starts building. Works in the Claude Code terminal and desktop app."
 if ! command -v claude >/dev/null 2>&1; then
-  warn "  Claude Code was not found on your PATH, so this part is skipped."
-  warn "  Install Claude Code, then run: claude plugin install glaze-coder"
-elif want "$GLAZE_PLUGIN" y "Install the Claude Code plugin?"; then
+  warn "  Claude Code was not found on your PATH."
+  if want "$GLAZE_CLAUDE" n "Install Claude Code now with npm?"; then
+    if install_claude_code && command -v claude >/dev/null 2>&1; then
+      green "  Installed Claude Code"
+      warn "  Run 'claude' once after this installer to log in."
+    else
+      warn "  Could not install Claude Code automatically."
+      warn "  Requirement: install it from https://claude.com/product/claude-code, then run 'claude' to log in."
+    fi
+  else
+    warn "  Requirement: install Claude Code from https://claude.com/product/claude-code, then run 'claude' to log in."
+  fi
+fi
+if command -v claude >/dev/null 2>&1 && want "$GLAZE_PLUGIN" y "Install the Claude Code plugin?"; then
   claude plugin marketplace add GaimsDevSoftware/glaze-coder >/dev/null 2>&1 || true
   if claude plugin install glaze-coder >/dev/null 2>&1 \
      || claude plugin install glaze-coder@glaze-coder-marketplace >/dev/null 2>&1; then
@@ -123,7 +191,7 @@ elif want "$GLAZE_PLUGIN" y "Install the Claude Code plugin?"; then
   else
     warn "  Could not install automatically. Run: claude plugin install glaze-coder"
   fi
-else
+elif command -v claude >/dev/null 2>&1; then
   print "  Skipped."
 fi
 print ""
