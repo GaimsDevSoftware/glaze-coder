@@ -197,12 +197,22 @@ JSON-parsing recipes; the engine-specific decisions are:
   json --json-schema <schema> --tools "" --no-session-persistence`, env scrubbed of
   API-key/gateway vars. Parse `structured_output` from the JSON envelope, falling
   back to `JSON.parse(envelope.result)` with markdown fences stripped.
-- GUI processes sometimes cannot reach the Terminal login/keychain session. On login
-  errors only, retry once through a pseudo-terminal via `/usr/bin/script -q /dev/null
-  <bin> ...`. The prompt moves into the `-p` argument there (pty stdin is echoed into
-  stdout and would pollute parsing); cap it around 200k chars. This avoids a node-pty
-  dependency; upgrade to the `glaze-claude-cli` node-pty recipe only if this proves
-  insufficient on real machines.
+- GUI-spawned processes cannot read Claude Code's keychain item, so `claude` reports
+  "Not logged in" even when Terminal works. On login errors only, retry once through
+  a LOGIN pseudo-terminal: `/usr/bin/script -q /dev/null /usr/bin/login -fpq <user>
+  /bin/zsh -c '<claude cmd>'`. login(1) creates a real login session where the
+  keychain is reachable (works as the same non-root user); script(1) supplies the
+  pty login needs. Write the prompt and schema to temp files and inline them with
+  `"$(cat '<file>')"` to dodge shell quoting; delete the temp dir afterwards. This
+  avoids a node-pty dependency.
+- Claude Code can exit 0 with an error envelope (`is_error: true`, result "Not
+  logged in - Please run /login"); detect that in the JSON parser and classify it as
+  a login error, or it surfaces as a generic parse failure.
+- Auto-remediation: when the user-triggered Test hits the not-logged-in state, open
+  Terminal running `claude` via osascript so the only remaining step is the
+  interactive login itself, and say so in the error message. Never auto-open
+  Terminal from background AI calls, and never try to automate the OAuth flow - it
+  must stay user-driven.
 - Typed failures: `claude-not-installed`, `claude-not-logged-in`, `claude-error`.
 - The JSON Schema comes from the app's zod schema via `z.toJSONSchema(schema)` (the
   SDK bundles zod v4; `z` is re-exported by `@glaze/core/ai`). Strip the `$schema`
