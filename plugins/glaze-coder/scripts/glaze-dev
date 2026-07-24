@@ -168,7 +168,7 @@ _launch_agent() {
     codex-app)     open -b com.openai.codex "$src"           && print -r -- "▶ Åpnet Codex-appen på mappen" || print -u2 "❌ Fikk ikke åpnet Codex-appen" ;;
     opencode-app)  open -b ai.opencode.desktop "$src"        && print -r -- "▶ Åpnet OpenCode-appen"        || print -u2 "❌ Fikk ikke åpnet OpenCode-appen" ;;
     antigravity)   open -b com.google.antigravity-ide "$src" && print -r -- "▶ Åpnet Antigravity IDE på mappen" || print -u2 "❌ Fikk ikke åpnet Antigravity" ;;
-    zcode)         open -b dev.zcode.app "$src"              && print -r -- "▶ Åpnet ZCode på mappen"        || print -u2 "❌ Fikk ikke åpnet ZCode" ;;
+    zcode)         _open_zcode "$src" "${${(s:|:)$(_appmeta "$ROOT")}[1]:-${ROOT:t}}" "$prompt" ;;
     *) print -u2 "❌ Ukjent agent: $agent  (se: glaze-dev agents)"; exit 1 ;;
   esac
 }
@@ -178,7 +178,7 @@ cmd_code() { # åpne valgt agent i app-mappen (gratis iterasjon)
   local -a pos
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --agent) agent="$2"; shift 2 ;;
+      --agent|--tool) agent="$2"; shift 2 ;;
       --claude|--codex|--opencode|--gemini) agent="${1#--}"; shift ;;
       --codex-app|--opencode-app|--antigravity|--zcode) agent="${1#--}"; shift ;;
       *) pos+=("$1"); shift ;;
@@ -355,6 +355,132 @@ function run(argv) {
 }
 JXA
 }
+
+# Handoff-prompten en agent får når vi tar over en app der Glaze-vibekoderen slapp.
+# Agent-uavhengig (Claude Code, ZCode, ...). Base-teksten er ett sted; her legger vi
+# på en eventuell pauset Glaze-kø. Brukes både herfra og fra Raycast-scriptet.
+_handoff_base() { # <visningsnavn> -> grunntekst uten kø
+  printf '%s' "Fortsett arbeidet på Glaze-appen '$1' der forrige økt slapp (f.eks. avbrutt av tomme Glaze-kreditter). Les .glaze_memory/PROJECT-CONTEXT.md og PROJECT-HISTORY.md, kjør npm run type-check, se på nylig endrede filer, og fullfør det som var underveis."
+}
+cmd_handoff() { # <app> -> skriv ut full handoff-prompt (grunntekst + evt. kø)
+  _need "$1"
+  local meta="$(_appmeta "$ROOT")"; local prod="${meta%%|*}"; [[ -n "$prod" ]] || prod="$1"
+  local h="$(_handoff_base "$prod")"
+  local q; q="$(cmd_queue "$1" 2>/dev/null)" || q=""
+  case "$q" in
+    GLAZE_NOT_RUNNING|NO_WINDOW|NO_QUEUE|"") ;;
+    *) h="$h"$'\n\n'"Glaze-vibekoderen hadde disse oppgavene i kø da den stoppet - utfør dem i rekkefølge:"$'\n\n'"$q" ;;
+  esac
+  printf '%s' "$h"
+}
+
+# Sømløs ZCode-åpning: åpne app-mappen som et ZCode-arbeidsområde via ZCodes egen
+# deep link, start en fersk tråd (Cmd+N) og lim handoff-prompten inn i tekstboksen
+# (Cmd+V). Vi trykker aldri Enter - brukeren ser over og sender selv. Auto-innliming
+# krever Tilgjengelighet-tilgang; uten den faller vi pent tilbake til utklippstavlen.
+#   $1 = .glaze-sources-sti   $2 = visningsnavn   $3 = valgfri egendefinert prompt
+_open_zcode() {
+  local src="$1" name="$2" custom="$3"
+  local handoff
+  if [[ -n "$custom" ]]; then
+    handoff="$custom"
+  else
+    handoff="$(cmd_handoff "$name" 2>/dev/null)" || handoff=""
+    [[ -n "$handoff" ]] || handoff="$(_handoff_base "$name")"
+  fi
+  printf '%s' "$handoff" | pbcopy
+
+  local was_running=0; pgrep -x ZCode >/dev/null 2>&1 && was_running=1 || true
+  local enc; enc="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$src")"
+  open "zcode://workspace/open?path=$enc" 2>/dev/null \
+    || open -a ZCode "$src" 2>/dev/null || open -a ZCode 2>/dev/null || true
+
+  local tries=0
+  while ! pgrep -x ZCode >/dev/null 2>&1 && (( tries < 40 )); do sleep 0.3; (( tries++ )) || true; done
+  (( was_running )) && sleep 0.4 || sleep 2.5
+
+  # Hvorfor dette er mer enn en timer: ZCodes deep link viser først et native
+  # bekreftelses-ark ("åpne dette arbeidsområdet?") på vinduet. Tekstboksen finnes
+  # IKKE før brukeren godkjenner. Så vi hever ZCode, VENTER til et ark eventuelt
+  # dukker opp, og VENTER så til brukeren har lukket det (uansett hvor lang tid det
+  # tar), og limer først da inn i en fersk tråd. Aldri Enter - brukeren sender selv.
+  local result
+  result="$(osascript <<'APPLESCRIPT'
+on hasSheet()
+  try
+    tell application "System Events" to tell process "ZCode"
+      repeat with w in windows
+        if (count of sheets of w) > 0 then return true
+      end repeat
+    end tell
+  end try
+  return false
+end hasSheet
+
+on run
+  try
+    tell application "System Events" to set frontmost of process "ZCode" to true
+  on error
+    return "ERR"
+  end try
+  set frontOk to false
+  repeat 80 times
+    try
+      tell application "System Events" to set frontOk to (frontmost of process "ZCode")
+    on error
+      return "ERR"
+    end try
+    if frontOk then exit repeat
+    delay 0.15
+  end repeat
+  if not frontOk then return "NOFOCUS"
+
+  -- Se etter et bekreftelses-ark i ~3 s; dukker det opp, vent (opptil ~2 min) til
+  -- brukeren har lukket det. Da, og bare da, er arbeidsområdet og tekstboksen klar.
+  set sawSheet to false
+  repeat 20 times
+    if hasSheet() then
+      set sawSheet to true
+      exit repeat
+    end if
+    delay 0.15
+  end repeat
+  if sawSheet then
+    repeat 800 times
+      if not hasSheet() then exit repeat
+      delay 0.15
+    end repeat
+    if hasSheet() then return "PENDING"
+    delay 1.2
+  end if
+
+  delay 0.4
+  try
+    tell application "System Events"
+      keystroke "n" using command down
+      delay 0.7
+      keystroke "a" using command down
+      delay 0.15
+      keystroke "v" using command down
+    end tell
+  on error
+    return "ERR"
+  end try
+  return "PASTED"
+end run
+APPLESCRIPT
+)" || result="ERR"
+
+  if [[ "$result" == PASTED ]]; then
+    print -r -- "▶ Åpnet ZCode på '$name' med ny tråd og handoff limt inn. Trykk Enter der for å starte."
+    osascript -e "display notification \"Åpnet $name i ZCode med ny tråd og handoff. Trykk Enter for å sende.\" with title \"Glaze: Edit $name\"" 2>/dev/null || true
+  else
+    print -r -- "▶ Åpnet ZCode på '$name'. Handoff ligger på utklippstavlen. Trykk Cmd+N så Cmd+V for å lime den inn."
+    print -r -- "  (Auto-innliming krever Tilgjengelighet-tilgang for appen som kjører dette under Systeminnstillinger > Personvern og sikkerhet.)"
+    osascript -e "display notification \"Åpnet $name i ZCode. Trykk Cmd+N så Cmd+V for handoff (ligger på utklippstavlen).\" with title \"Glaze: Edit $name\"" 2>/dev/null || true
+  fi
+}
+
 cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/skills"; }
 
 # Hjelp til Raycast-oppsettet (Raycast har ingen deeplink for å legge til en
@@ -590,6 +716,7 @@ ALLE KOMMANDOER:
   glaze-dev path   <app>                Skriv ut sti til .glaze-sources
   glaze-dev queue  <app>                Les ut pausede prompts fra Glaze-vibekoderen
                                         (krever at Glaze er åpen med appens chat)
+  glaze-dev handoff <app>               Skriv ut handoff-prompten (grunntekst + evt. kø)
   glaze-dev icon   <app>                Generer nytt app-ikon (initialer + gradient)
   glaze-dev finder <app>                Åpne app-mappen i Finder
   glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
@@ -622,6 +749,7 @@ case "$cmd" in
   path)                 cmd_path "$@" ;;
   icon)                 cmd_icon "$@" ;;
   queue)                cmd_queue "$@" ;;
+  handoff)              cmd_handoff "$@" ;;
   finder|reveal)        cmd_finder "$@" ;;
   rm|delete|remove)     cmd_rm "$@" ;;
   raycast|raycast-setup) cmd_raycast "$@" ;;
