@@ -483,8 +483,9 @@ cmd_new() {
   # midlertidig plassholder til du bytter app-icon.png/app-icon.icns.
   rm -f "$newsrc/.icon-hash"(N) 2>/dev/null
   # personlige Claude Code-tillatelser (kan inneholde absolutte stier med
-  # brukernavn) skal heller ikke arves; Claude lager en ny ved behov.
-  rm -f "$newsrc/.claude/settings.local.json"(N) 2>/dev/null
+  # brukernavn) og gamle worktrees skal heller ikke arves.
+  rm -f  "$newsrc/.claude/settings.local.json"(N) 2>/dev/null
+  rm -rf "$newsrc/.claude/worktrees"(N) 2>/dev/null
 
   # 2) ny identitet i package.json
   ( cd "$newsrc" && node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("package.json"));const[,id,name,prod]=process.argv;j.id=id;j.name=name;j.productName=prod;j.description="A Glaze app: "+prod;fs.writeFileSync("package.json",JSON.stringify(j,null,2))' "$id" "$name" "$prod" )
