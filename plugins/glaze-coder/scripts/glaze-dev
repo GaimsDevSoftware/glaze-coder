@@ -87,6 +87,39 @@ _need() { # <query> -> sets $SRC and $ROOT, or exits
   ROOT="${SRC:h}"
 }
 
+# Synk appens EGET ikon inn i launcher-bundlen og .glaze/ etter bygg, slik at
+# apper klonet fra en mal ikke blir stående med malens ikon. Bevarer
+# entitlements ved re-signering. Idempotent (gjør ingenting når ikonet stemmer).
+_sync_icon() { # <src-dir (.glaze-sources)>
+  local src="$1" root="${1:h}"
+  local icns="$src/app-icon.icns"
+  [[ -f "$icns" ]] || return 0
+  local meta="$(_appmeta "$root")"; local prod="${meta%%|*}"
+  local bundle="/Applications/Glaze/${prod}.app"
+  # sikkerhetssjekk: bundle må peke tilbake på DENNE appen
+  [[ -d "$bundle" ]] || return 0
+  local runtime="$(readlink "$bundle/Contents/Resources/glaze-runtime" 2>/dev/null)"
+  [[ "$runtime" == "$root/.glaze" ]] || return 0
+  # .glaze/app-icon.icns (Glaze Store-review forventer denne)
+  if [[ -d "$root/.glaze" ]] && ! cmp -s "$icns" "$root/.glaze/app-icon.icns"; then
+    cp "$icns" "$root/.glaze/app-icon.icns"
+  fi
+  # launcher-bundlens ikon
+  if ! cmp -s "$icns" "$bundle/Contents/Resources/app-icon.icns"; then
+    cp "$icns" "$bundle/Contents/Resources/app-icon.icns"
+    local ent="$(mktemp)"
+    codesign -d --entitlements "$ent" --xml "$bundle" 2>/dev/null || true
+    if [[ -s "$ent" ]]; then
+      codesign --force -s - --entitlements "$ent" "$bundle" 2>/dev/null || true
+    else
+      codesign --force -s - "$bundle" 2>/dev/null || true
+    fi
+    rm -f "$ent"
+    touch "$bundle"
+    print -r -- "✓ Ikon synket inn i ${bundle:t}"
+  fi
+}
+
 # --- Kommandoer ---------------------------------------------------------------
 cmd_list() {
   print -r -- "Glaze-apper (i $APPS_DIR):"
@@ -165,7 +198,7 @@ cmd_agents() {
   print -r -- "Codex/OpenCode/Gemini får Glaze-kontekst via en AGENTS.md-bro i app-mappen."
 }
 
-cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1..."; npm run build; }
+cmd_build()   { _need "$1"; cd "$SRC"; print "▶ Bygger $1..."; npm run build; _sync_icon "$SRC"; }
 cmd_dev()     { _need "$1"; cd "$SRC"; print "▶ Dev-server for $1 (Ctrl-C for å stoppe)..."; npm run dev; }
 cmd_check()   { _need "$1"; cd "$SRC"; npm run type-check; }
 cmd_lint()    { _need "$1"; cd "$SRC"; npm run lint; }
@@ -253,6 +286,10 @@ cmd_new() {
   rm -f  "$new"/*.app(N) 2>/dev/null
   rm -rf "$newsrc/.git" "$new/.glaze" 2>/dev/null
   rm -f  "$newsrc/.glaze_memory/PROJECT-HISTORY.md"(N) 2>/dev/null
+  # ikon-identitet skal IKKE arves: fjern hash-markøren så Glaze-agenten vet at
+  # ikonet ikke er generert for denne appen. Selve malikonet blir stående som
+  # midlertidig plassholder til du bytter app-icon.png/app-icon.icns.
+  rm -f "$newsrc/.icon-hash"(N) 2>/dev/null
 
   # 2) ny identitet i package.json
   ( cd "$newsrc" && node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("package.json"));const[,id,name,prod]=process.argv;j.id=id;j.name=name;j.productName=prod;j.description="A Glaze app: "+prod;fs.writeFileSync("package.json",JSON.stringify(j,null,2))' "$id" "$name" "$prod" )
@@ -303,6 +340,8 @@ EOF
   rm -f "$ent"
 
   print -r -- "✓ Opprettet uten kreditter: $newapp"
+  print -r -- "NB: appen viser malens ikon til du bytter det. Legg nytt app-icon.png +"
+  print -r -- "    app-icon.icns i .glaze-sources, så synker 'glaze-dev build' det inn."
   (( noopen )) || open "$newapp"
   print -r -- "Neste: glaze-dev code $name \"bygg ut appen slik:...\"  (gratis videreutvikling)"
 }
