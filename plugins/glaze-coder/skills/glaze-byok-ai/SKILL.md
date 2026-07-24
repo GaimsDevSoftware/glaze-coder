@@ -5,6 +5,14 @@ description: Give Glaze app users a choice of AI engine - built-in Glaze AI (zer
 
 # User-selectable AI engine for Glaze apps (Glaze AI or BYOK)
 
+Before scaffolding, read the developer's saved policy if present:
+`~/.config/glaze-coder/defaults.json` with `{"aiDefault": "glaze" | "byok-fallback"
+| "byok-first"}` (written by the Free Coder for Glaze onboarding app).
+`byok-fallback` = Glaze default + auto-fallback on (this skill's default);
+`byok-first` = scaffold with a free engine as the app's default provider and Glaze
+never running unasked; `glaze` = built-in AI only, skip the engine picker. A missing
+file means `byok-fallback`.
+
 Default policy for apps built with glaze-coder: when an app calls AI, the end user
 gets to pick the engine. Glaze AI works with zero setup but spends the user's Glaze
 credits; a bring-your-own-key engine is free for them (Gemini has a real free tier);
