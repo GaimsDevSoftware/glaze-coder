@@ -19,7 +19,9 @@ Node runtime Glaze already ships. Editing and building cost you nothing in Glaze
 
 - A **skill** (`glaze-app-dev`) that gives Claude Code the Glaze project layout, the safety
   rules, and the local build and run loop. It also reads the guide and skills that ship
-  with your own Glaze install, so it stays current with your version.
+  with your own Glaze install, so it stays current with your version. That includes the
+  newer SDK APIs: built-in AI (`glaze.capabilities.ai`), apps as MCP servers, local
+  Claude Code CLI integration, and native icons and thumbnails.
 - A **command** (`/glaze-coder:glaze`) that lists your apps and starts building.
 - A **launcher** (`glaze-dev`) for the terminal and Raycast, with commands to create,
   edit, build, run and remove apps.

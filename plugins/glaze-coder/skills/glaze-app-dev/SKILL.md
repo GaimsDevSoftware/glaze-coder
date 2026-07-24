@@ -46,13 +46,38 @@ An app lives at `"$GLAZE_BASE/apps/<app-folder>/"` and contains:
 Each Glaze install ships its own always-current guide + skills. Read them before coding:
 
 - `"$GLAZE_BASE/agent-resources/current/GLAZE-APP-GUIDE.md"`, full structure guide
-  (backend/frontend layout, window/tray/notification/global-shortcut recipes, bundling).
-- `"$GLAZE_BASE/agent-resources/current/.claude/skills/"`, ~24 task skills:
-  `glaze-component-patterns`, `glaze-frontend-rules`, `glaze-backend-rules`,
-  `glaze-ipc-communication`, `glaze-data-storage`, `glaze-external-api`,
-  `glaze-browser-window-recipes`, `glaze-theming`, `glaze-oauth`, etc.
+  (backend/frontend layout, window/tray/notification/global-shortcut recipes, bundling,
+  publishing, and an "SDK API Reference" section that tells you how to look up exact
+  `@glaze/core` exports and `window.glazeAPI` symbols instead of enumerating `sdk/current`).
+- `"$GLAZE_BASE/agent-resources/current/.claude/skills/"`, the task skills that ship with
+  the user's Glaze install (the set grows with each SDK release, so list the folder rather
+  than trusting a fixed count). Core ones: `glaze-component-patterns`, `glaze-frontend-rules`,
+  `glaze-backend-rules`, `glaze-ipc-communication`, `glaze-data-storage`, `glaze-external-api`,
+  `glaze-browser-window-recipes`, `glaze-theming`, `glaze-oauth`. Newer ones you should know
+  exist:
+  - `glaze-ai`: built-in AI via the user's Glaze account (see "Newer SDK capabilities" below).
+  - `glaze-claude-cli`: integrate the user's local Claude Code CLI via `claude -p` / `--print`.
+    Not the default AI path; only for users known to have Claude Code installed.
+  - `glaze-mcp-server`: expose an app's data/actions as an MCP server (standalone stdio by
+    default, in-app HTTP for live control) so the app is usable from Claude Code, Codex, etc.
+  - `glaze-native-images`: native app icons, file icons, and Quick Look thumbnails via
+    `getFileIconUrl()` / `getFileThumbnailUrl()` from `@glaze/core/utils`.
 - The app's own `"$SRC/CLAUDE.md"` and `"$SRC/.glaze_memory/PROJECT-CONTEXT.md"`
   (where `SRC="$GLAZE_BASE/apps/<app-folder>/.glaze-sources"`).
+
+### Newer SDK capabilities (read the matching skill before using)
+
+- **AI**: apps declare `glaze.capabilities.ai` in `package.json` (grades + purpose + mode;
+  publish rejects apps that call AI without it), call `generateText` from the backend or the
+  `useGlazeAI` hook in the renderer, and pick a grade (`"fast"`/`"smart"`/`"powerful"`), never
+  a raw model id. Glaze owns consent/credits/blocked-state UI. Do not trigger AI calls just to
+  verify a build. Details: `glaze-ai`.
+- **Local Claude Code CLI**: an app can call the user's own Claude Code subscription via
+  `claude -p`. Backend only, no credential collection. Details: `glaze-claude-cli`.
+- **App as MCP server**: give an app MCP tools so outside agents can read/write its data.
+  Details: `glaze-mcp-server`.
+- **Native images**: display-density-aware icon/thumbnail URLs for the renderer; never spawn
+  JXA/`sips` or push base64 icons over IPC. Details: `glaze-native-images`.
 
 Read the matching skill BEFORE writing code that touches: UI components, IPC handlers,
 data storage, external APIs, native permissions, windows/tray, CLI tools, or perf-sensitive code.
@@ -71,8 +96,8 @@ API is actually exported here. Renderer calls the backend via `window.glazeAPI`
 <critical>
 - Edit **only** inside `.glaze-sources/`. **Never** edit/create files in `.glaze/` (build output), change `glaze.config.ts` instead.
 - **Never** modify `@glaze/core` (the SDK) and never `npm install` it or the `glaze` CLI, they resolve via tsconfig paths + the bundled SDK at `sdk/current/@glaze/core`.
-- **Forbidden imports** (runtime breakage): `backendNativeBridge`, `@glaze/core/backend/internal`, `GlazeIPCServer`, `GlazeLifecycle`, `registerNativeApiHandlers`, `wireProtocolHandlers`. Use the public `@glaze/core/backend` exports (`dialog`, `shell`, `clipboard`, `Notification`, `Menu`, `Tray`, ...). If an API isn't exported (e.g. `powerMonitor`), tell the user it's unavailable rather than reaching into internals.
-- **Do not touch Glaze's managed `.npmrc`** (`~/Library/Application Support/app.glaze.macos.*/.npmrc`) or `NPM_CONFIG_USERCONFIG`, and don't set its keys (`min-release-age`, `before`, `registry`, `ignore-scripts`, ...) in a project `.npmrc`. If `npm install` fails because a version is too new, **pin an older version in `package.json`** instead of weakening policy.
+- **Forbidden imports** (runtime breakage): `backendNativeBridge`, `@glaze/core/backend/internal`, `GlazeIPCServer`, `GlazeLifecycle`, `registerNativeApiHandlers`, `wireProtocolHandlers`. Use the public `@glaze/core/backend` exports (`dialog`, `shell`, `clipboard`, `systemPreferences`, `globalShortcut`, `nativeTheme`, `screen`, `powerMonitor`, `powerSaveBlocker`, `safeStorage`, `Notification`, `Menu`, `Tray`, ...). If a feature has no public API in `@glaze/core/backend`, it is not implemented yet: tell the user it's unavailable rather than reaching into internals.
+- **Do not touch Glaze's managed `.npmrc`** (`~/Library/Application Support/app.glaze.macos.*/.npmrc`) or `NPM_CONFIG_USERCONFIG`, and don't set its keys (`min-release-age`, `allow-git`, `registry`, `ignore-scripts`, ...) in a project `.npmrc`. If `npm install` fails because a version is too new, **pin an older version in `package.json`** instead of weakening policy.
 - **No CSS/WebKit blur as a window background** (`backdrop-filter`, `-webkit-backdrop-filter`, Tailwind `backdrop-blur-*`). For frosted/glass windows use native `BrowserWindow` vibrancy with `frame: true` and hide traffic lights via `setWindowButtonVisibility(false)`. Use `frame: false` only for true custom-shaped transparent overlays.
 - Styling = Tailwind v4 utilities + the design system (semantic colors, `Text` variants, `rounded-*` roles), don't hand-roll CSS files or use raw Tailwind color palette. See `glaze-component-patterns`.
 - Surgical edits only; never ship mock/placeholder data.
@@ -109,6 +134,13 @@ template's `/Applications/Glaze/<App>.app`, re-point its `Contents/Resources/gla
 symlink at the new app's `.glaze`, and ad-hoc sign it. New apps are ad-hoc signed for
 your own use; publishing to the Glaze Store is a separate step in Glaze and does not cost
 credits. Confirm with the user before duplicating.
+
+When publishing matters: only `.glaze/build/` is zipped and shipped, `node_modules/` is
+not. The app must run from `build/main/index.js` alone. For native `.node` addons or
+packages that read files from their own directory at runtime, use `copyNativeBindings` /
+`externalizePackage` from `@glaze/core/build` in `glaze.config.ts` (see the guide's
+"Bundling & Publishing" section). Never patch `.glaze/` by hand; fix the build config.
+Apps that call AI must declare `glaze.capabilities.ai` in `package.json` or publish rejects them.
 
 ## 6. Etiquette
 
