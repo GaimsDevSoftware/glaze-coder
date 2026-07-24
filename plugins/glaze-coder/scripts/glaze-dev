@@ -213,96 +213,96 @@ cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
 cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
 
-# Interaktiv onboarding og helsesjekk: verifiser hele oppsettet steg for steg,
-# forklar AI-motorvalgene, og pek på neste steg der noe mangler. Trygg å kjøre
-# når som helst; endrer ingenting uten å spørre.
+# Interactive onboarding and health check: verifies the whole setup step by
+# step, explains the AI engine choices, and points at the next step wherever
+# something is missing. Safe to run any time; changes nothing without asking.
 cmd_setup() {
   local pass="%F{green}✓%f" fail="%F{red}✗%f" note="%F{yellow}!%f"
-  print -P "%B== glaze-dev setup: onboarding og helsesjekk ==%b"
+  print -P "%B== glaze-dev setup: onboarding and health check ==%b"
   print ""
 
-  # 1) Maskin
+  # 1) Machine
   if [[ "$(uname -m)" == arm64 ]]; then
-    print -P "$pass Apple Silicon-Mac"
+    print -P "$pass Apple Silicon Mac"
   else
-    print -P "$fail Krever Apple Silicon (arm64). Denne maskinen: $(uname -m)"
+    print -P "$fail Apple Silicon (arm64) is required. This machine: $(uname -m)"
   fi
 
-  # 2) Glaze selv
+  # 2) Glaze itself
   if [[ -n "$GLAZE_BASE" && -d "$GLAZE_BASE/apps" ]]; then
     local napps; napps="$(ls -1 "$APPS_DIR" 2>/dev/null | wc -l | tr -d ' ')"
-    print -P "$pass Glaze er installert ($napps app(er))"
+    print -P "$pass Glaze is installed ($napps app(s))"
     if (( napps == 0 )); then
-      print "   Neste steg: lag din første app -> glaze-dev start \"Min App\""
+      print "   Next step: create your first app -> glaze-dev start \"My App\""
     fi
   else
-    print -P "$fail Glaze er ikke installert (eller aldri startet)."
-    print "   Last ned fra https://www.glaze.app, åpne den én gang, og kjør setup igjen."
+    print -P "$fail Glaze is not installed (or has never been opened)."
+    print "   Download it from https://www.glaze.app, open it once, then run setup again."
     print ""
-    print "Resten av sjekkene hopper vi over til Glaze er på plass."
+    print "Skipping the remaining checks until Glaze is in place."
     return 0
   fi
 
-  # 3) Medfølgende Node (kreves for gratis bygg)
+  # 3) Bundled Node (required for free local builds)
   if command -v node >/dev/null 2>&1 && [[ "$(node -v 2>/dev/null)" == v2[4-9]* ]]; then
-    print -P "$pass Node $(node -v) (Glaze sin medfølgende runtime)"
+    print -P "$pass Node $(node -v) (Glaze's bundled runtime)"
   else
-    print -P "$note Fant ikke Glaze sin Node >= 24 på PATH. Bygg kan feile."
-    print "   Den følger med Glaze; åpne Glaze én gang så lastes den ned."
+    print -P "$note Could not find Glaze's Node >= 24 on PATH. Builds may fail."
+    print "   It ships with Glaze; open Glaze once and it downloads."
   fi
 
-  # 4) Claude Code (gratis utvikling via ditt abonnement)
+  # 4) Claude Code (free development on your subscription)
   if command -v claude >/dev/null 2>&1; then
     print -P "$pass Claude Code $(claude --version 2>/dev/null | head -1)"
-    print "   NB: --version beviser ikke innlogging. Aldri logget inn? Kjør: claude"
+    print "   Note: --version does not prove login. Never logged in? Run: claude"
   else
-    print -P "$fail Claude Code er ikke installert."
-    print "   Installer fra https://claude.com/product/claude-code og kjør 'claude' for innlogging."
-    print "   Uten den koster utvikling Glaze-kreditter; med den er den gratis via abonnementet ditt."
+    print -P "$fail Claude Code is not installed."
+    print "   Install it from https://claude.com/product/claude-code and run 'claude' to log in."
+    print "   Without it, development costs Glaze credits; with it, it is free on your subscription."
   fi
 
-  # 5) Glaze-skills lenket inn i ~/.claude
+  # 5) Glaze skills linked into ~/.claude
   local nlinked=0
   [[ -d "$HOME/.claude/skills" ]] && nlinked="$(ls -1 "$HOME/.claude/skills" 2>/dev/null | grep -c "^glaze" || true)"
   if (( nlinked > 5 )); then
-    print -P "$pass Glaze-skills lenket inn i ~/.claude/skills ($nlinked stk)"
+    print -P "$pass Glaze skills linked into ~/.claude/skills ($nlinked)"
   else
-    print -P "$note Glaze-skills ser ikke ut til å være lenket."
+    print -P "$note The Glaze skills do not seem to be linked."
     if [[ -t 0 ]]; then
-      read "ans?   Lenke dem nå? [Y/n]: "
-      [[ -z "$ans" || "$ans" == [Yy]* ]] && { _link_skills; print -P "$pass Lenket."; }
+      read "ans?   Link them now? [Y/n]: "
+      [[ -z "$ans" || "$ans" == [Yy]* ]] && { _link_skills; print -P "$pass Linked."; }
     else
-      print "   Kjør: glaze-dev skills"
+      print "   Run: glaze-dev skills"
     fi
   fi
 
-  # 6) Claude Code-plugin
+  # 6) Claude Code plugin
   if command -v claude >/dev/null 2>&1; then
     if claude plugin list 2>/dev/null | grep -q "glaze-coder"; then
-      print -P "$pass Claude Code-pluginen (/glaze-coder:glaze) er installert"
+      print -P "$pass The Claude Code plugin (/glaze-coder:glaze) is installed"
     else
-      print -P "$note Claude Code-pluginen mangler. Kjør: claude plugin install glaze-coder"
+      print -P "$note The Claude Code plugin is missing. Run: claude plugin install glaze-coder"
     fi
   fi
 
-  # 7) Raycast (valgfritt)
+  # 7) Raycast (optional)
   if [[ -d "/Applications/Raycast.app" || -d "$HOME/Applications/Raycast.app" ]]; then
-    print -P "$pass Raycast finnes. Kommandoer settes opp med: glaze-dev raycast"
+    print -P "$pass Raycast found. Set up the commands with: glaze-dev raycast"
   else
-    print -P "$note Raycast ikke funnet (valgfritt). Kommandoene virker fint uten."
+    print -P "$note Raycast not found (optional). Everything works fine without it."
   fi
 
-  # 8) AI i appene dine
+  # 8) AI in the apps you build
   print ""
-  print -P "%BAI-motorer i appene du bygger:%b"
-  print "  Apper laget med glaze-coder gir sluttbrukeren et valg om AI skal koste noe:"
-  print "  - Glaze AI       innebygd, null oppsett, bruker brukerens Glaze-kreditter"
-  print "  - Google Gemini  gratis med egen nøkkel (https://aistudio.google.com/apikey)"
-  print "  - OpenRouter     gratis modeller med egen nøkkel (lav dagskvote)"
-  print "  - Claude Code    gratis via brukerens Claude-abonnement (lokal CLI)"
-  print "  Tomme Glaze-kreditter? Reservemotoren bytter automatisk til en gratis motor."
+  print -P "%BAI engines in the apps you build:%b"
+  print "  Apps made with glaze-coder let the end user choose whether AI costs anything:"
+  print "  - Glaze AI       built in, zero setup, uses the user's Glaze credits"
+  print "  - Google Gemini  free with their own key (https://aistudio.google.com/apikey)"
+  print "  - OpenRouter     free models with their own key (low daily quota)"
+  print "  - Claude Code    free through the user's Claude subscription (local CLI)"
+  print "  Out of Glaze credits? The backup engine switches to a configured free engine."
   print ""
-  print -P "%BKlar. Neste steg:%b  glaze-dev start \"Min App\"    (ny app + Claude Code, 0 kreditter)"
+  print -P "%BReady. Next step:%b  glaze-dev start \"My App\"    (new app + Claude Code, 0 credits)"
 }
 
 # Les ut koede (pausede) prompts fra Glaze-vibekoderens chatvindu for en app.
