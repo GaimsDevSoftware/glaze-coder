@@ -206,6 +206,57 @@ cmd_run()     { _need "$1"; local app=("$ROOT"/*.app(N)); (( ${#app} )) && open 
 cmd_buildrun(){ cmd_build "$1"; cmd_run "$1"; }
 cmd_path()    { _need "$1"; print -r -- "$SRC"; }
 cmd_finder()  { _need "$1"; open "$SRC"; }
+
+# Les ut koede (pausede) prompts fra Glaze-vibekoderens chatvindu for en app.
+# Koen finnes bare i Glaze-UIets minne (ikke i db/localStorage), så vi leser den
+# fra accessibility-treet. CSS-avkutting kutter ikke DOM-teksten, så vi får
+# fullteksten. Best effort: krever at Glaze er åpen med appens chatvindu.
+cmd_queue() {
+  _need "$1"
+  local meta="$(_appmeta "$ROOT")"; local prod="${meta%%|*}"
+  osascript -l JavaScript - "$prod" <<'JXA'
+function run(argv) {
+  const title = argv[0];
+  const se = Application('System Events');
+  let proc;
+  try { proc = se.processes.byName('Glaze'); proc.windows(); }
+  catch (e) { return 'GLAZE_NOT_RUNNING'; }
+  let win = null;
+  for (const w of proc.windows()) { try { if (w.name() === title) { win = w; break; } } catch (e) {} }
+  if (!win) return 'NO_WINDOW';
+  const texts = [];
+  let markerY = null;
+  (function walk(el, d) {
+    if (d > 60) return;
+    let kids; try { kids = el.uiElements(); } catch (e) { return; }
+    for (const k of kids) {
+      let role = '', title = '';
+      try { role = k.role(); } catch (e) {}
+      try { title = String(k.title() || ''); } catch (e) {}
+      // Køens markører er knapper ("2 Queued Paused" / "Click to resume queue").
+      if (/resume queue|\d+ Queued/i.test(title)) {
+        try { const p = k.position(); if (p && (markerY === null || p[1] < markerY)) markerY = p[1]; } catch (e) {}
+      }
+      if (role === 'AXStaticText') {
+        try {
+          const v = k.value();
+          if (v) { const p = k.position(); texts.push({ v: v, y: p ? p[1] : 0 }); }
+        } catch (e) {}
+      }
+      walk(k, d + 1);
+    }
+  })(win, 0);
+  if (markerY === null) return 'NO_QUEUE';
+  const chrome = /resume queue|\d+ Queued|Describe your next change|credits left|Top up|^\s*Paused\s*$/i;
+  const items = texts
+    .filter(t => t.y >= markerY && !chrome.test(t.v) && t.v.trim().length > 40)
+    .sort((a, b) => a.y - b.y)
+    .map(t => t.v.trim());
+  if (!items.length) return 'NO_QUEUE';
+  return items.map((t, i) => (i + 1) + '. ' + t).join('\n\n');
+}
+JXA
+}
 cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/skills"; }
 
 # Hjelp til Raycast-oppsettet (Raycast har ingen deeplink for å legge til en
@@ -386,6 +437,8 @@ ALLE KOMMANDOER:
   glaze-dev check  <app>                TypeScript type-check
   glaze-dev lint   <app>                ESLint
   glaze-dev path   <app>                Skriv ut sti til .glaze-sources
+  glaze-dev queue  <app>                Les ut pausede prompts fra Glaze-vibekoderen
+                                        (krever at Glaze er åpen med appens chat)
   glaze-dev finder <app>                Åpne app-mappen i Finder
   glaze-dev rm     <app>                Fjern app fullstendig (bundle+kilde+profil)
   glaze-dev raycast                     Sett opp Raycast (kopier sti + åpne Raycast)
@@ -414,6 +467,7 @@ case "$cmd" in
   check|type-check)     cmd_check "$@" ;;
   lint)                 cmd_lint "$@" ;;
   path)                 cmd_path "$@" ;;
+  queue)                cmd_queue "$@" ;;
   finder|reveal)        cmd_finder "$@" ;;
   rm|delete|remove)     cmd_rm "$@" ;;
   raycast|raycast-setup) cmd_raycast "$@" ;;

@@ -26,15 +26,35 @@ cmd="exec $HOME/.local/bin/glaze-dev code --tool '$tool' '$1'"
 
 case "$where" in
   desktop)
-    printf '%s' "$src" | pbcopy
     if [[ "$tool" == zcode ]]; then
+      printf '%s' "$src" | pbcopy
       open -a ZCode "$src" 2>/dev/null || open -a ZCode 2>/dev/null
       osascript -e "display notification \"Åpner $1 i ZCode. Stien ligger også på utklippstavlen.\" with title \"Glaze: Edit $1\"" 2>/dev/null
       echo "Åpnet ZCode på '$1' (stien er på utklippstavlen)."
     else
-      open -a Claude
-      osascript -e "display notification \"Velg $1 under Recents i Code-fanen. Stien ligger på utklippstavlen.\" with title \"Glaze: Edit $1\"" 2>/dev/null
-      echo "Åpnet Claude Desktop. Velg '$1' i Code-fanen (stien er på utklippstavlen)."
+      # Claude Desktop: claude://-deeplink åpner Code-fanen på riktig mappe med
+      # handoff-prompten ferdig utfylt (bruker trykker Enter selv). Har Glaze-
+      # vibekoderen en pauset kø (f.eks. tomme kreditter), hentes den inn også.
+      handoff="Fortsett arbeidet på Glaze-appen '$1' der forrige økt slapp (f.eks. avbrutt av tomme Glaze-kreditter). Les .glaze_memory/PROJECT-CONTEXT.md og PROJECT-HISTORY.md, kjør npm run type-check, se på nylig endrede filer, og fullfør det som var underveis."
+      qtxt="$("$HOME/.local/bin/glaze-dev" queue "$1" 2>/dev/null)"
+      case "$qtxt" in
+        GLAZE_NOT_RUNNING|NO_WINDOW|NO_QUEUE|"") ;;
+        *) handoff="$handoff
+
+Glaze-vibekoderen hadde disse oppgavene i kø da den stoppet - utfør dem i rekkefølge:
+
+$qtxt" ;;
+      esac
+      printf '%s' "$handoff" | pbcopy
+      urlenc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
+      if open "claude://code/new?folder=$(urlenc "$src")&q=$(urlenc "$handoff")" 2>/dev/null; then
+        osascript -e "display notification \"Åpner $1 i Claude Code med mappe og handoff. Trykk Enter der for å starte.\" with title \"Glaze: Edit $1\"" 2>/dev/null
+        echo "Åpnet Claude Code (desktop) på '$1' med handoff-prompt. Trykk Enter der for å starte."
+      else
+        open -a Claude
+        osascript -e "display notification \"Velg $1 i Code-fanen og lim inn handoff-prompten (Cmd+V).\" with title \"Glaze: Edit $1\"" 2>/dev/null
+        echo "Åpnet Claude Desktop. Velg '$1' i Code-fanen og lim inn handoff-prompten (ligger på utklippstavlen)."
+      fi
     fi ;;
   auto)
     term="$(launch_in_terminal "$cmd")"

@@ -205,7 +205,13 @@ JSON-parsing recipes; the engine-specific decisions are:
   insufficient on real machines.
 - Typed failures: `claude-not-installed`, `claude-not-logged-in`, `claude-error`.
 - The JSON Schema comes from the app's zod schema via `z.toJSONSchema(schema)` (the
-  SDK bundles zod v4; `z` is re-exported by `@glaze/core/ai`).
+  SDK bundles zod v4; `z` is re-exported by `@glaze/core/ai`). Strip the `$schema`
+  key before passing it: zod stamps `draft/2020-12`, which the CLI's validator
+  rejects with `--json-schema is not a valid JSON Schema`.
+- When spawning `/usr/bin/script`, its stdin must be /dev/null (`stdio: ["ignore",
+  ...]` in Node), never a pipe: a Node pipe is a socketpair on macOS and script's
+  tcgetattr on a socket is a fatal `Operation not supported on socket`; /dev/null
+  gives ENOTTY, which script tolerates.
 
 ## Wire the app's AI call sites through one entry point
 
