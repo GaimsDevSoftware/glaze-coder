@@ -1,21 +1,21 @@
 #!/bin/zsh
 # Installer for glaze-coder.
 #
-# Run straight from the web (clones the repo for you):
-#   curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/install.sh | zsh
-#
-# Or from a cloned copy, where it can ask you what to install:
+# Run from a reviewed local copy:
+#   git clone https://github.com/GaimsDevSoftware/glaze-coder.git
+#   cd glaze-coder
 #   ./install.sh
 #
 # It always installs the core glaze-dev command. When run in a terminal it asks
-# which extra parts you want. Piped from curl it installs everything that can be
-# installed safely without an interactive account/login step.
+# which extra parts you want.
 #
 # You can also pick parts without being asked, by setting any of these to 1 or 0:
 #   GLAZE_SKILLS=1   Glaze skills for Claude Code
 #   GLAZE_CLAUDE=1   Try to install Claude Code with npm when it is missing
 #   GLAZE_PLUGIN=1   Claude Code plugin (/glaze-coder:glaze)
 #   GLAZE_RAYCAST=1  Open Raycast to finish adding its commands
+#   GLAZE_ALLOW_REMOTE_BOOTSTRAP=1
+#                     Allow a standalone install.sh to download the repo archive
 emulate -L zsh
 setopt pipe_fail 2>/dev/null
 
@@ -26,7 +26,7 @@ warn()  { print -P "%F{yellow}$1%f"; }
 head()  { print -P "%F{cyan}%B$1%b%f"; }
 
 # Ask a yes/no question. ask <default:y|n> <prompt>. Returns 0 for yes.
-# Falls back to the default when there is no terminal (for example curl | zsh).
+# Falls back to the default when there is no terminal.
 ask() {
   local def="$1" prompt="$2" hint ans
   [[ "$def" == y ]] && hint="[Y/n]" || hint="[y/N]"
@@ -108,13 +108,29 @@ bootstrap_repo() {
 
 add_glaze_node_to_path
 
-# 1. Find the repo, or clone it if we are running standalone (piped from curl).
+# 1. Find the repo, or clone it if we are running standalone.
 SELF_DIR="${0:A:h}"
 if [[ -f "$SELF_DIR/plugins/glaze-coder/scripts/glaze-dev" ]]; then
   REPO="$SELF_DIR"
 else
   REPO="$HOME/glaze-coder"
-  bootstrap_repo "$REPO" || { print -u2 "Install failed. See the requirement above."; exit 1; }
+  case "${GLAZE_ALLOW_REMOTE_BOOTSTRAP:-}" in
+    1|true|yes)
+      warn "Standalone installer mode: downloading the repo archive because only install.sh is present."
+      bootstrap_repo "$REPO" || { print -u2 "Install failed. See the requirement above."; exit 1; }
+      ;;
+    *)
+      print -u2 "This installer must be run from a local glaze-coder checkout."
+      print -u2 "Recommended:"
+      print -u2 "  git clone https://github.com/GaimsDevSoftware/glaze-coder.git"
+      print -u2 "  cd glaze-coder"
+      print -u2 "  ./install.sh"
+      print -u2 ""
+      print -u2 "If you intentionally reviewed this standalone script and want it to download"
+      print -u2 "the repo archive, rerun with: GLAZE_ALLOW_REMOTE_BOOTSTRAP=1 zsh install.sh"
+      exit 1
+      ;;
+  esac
 fi
 
 LAUNCHER="$REPO/plugins/glaze-coder/scripts/glaze-dev"
@@ -169,6 +185,8 @@ print ""
 head "Claude Code plugin  (recommended)"
 print "  Adds the /glaze-coder:glaze command inside Claude Code, which lists your apps"
 print "  and starts building. Works in the Claude Code terminal and desktop app."
+warn "  This installs plugin code from the GaimsDevSoftware/glaze-coder marketplace."
+warn "  Install it only if you trust that repository and its future updates."
 if ! command -v claude >/dev/null 2>&1; then
   warn "  Claude Code was not found on your PATH."
   if want "$GLAZE_CLAUDE" n "Install Claude Code now with npm?"; then

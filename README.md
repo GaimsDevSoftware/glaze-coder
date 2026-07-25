@@ -55,7 +55,8 @@ The installer does as much as it safely can for you:
 - links Glaze's skills into Claude Code/ZCode when Glaze has downloaded them
 - installs the Claude Code plugin when `claude` is available
 - can install Claude Code with `npm` when you run the interactive setup
-- falls back to a `curl`/`tar` download when `git` is missing
+- the double-click installer downloads a repo archive, shows the installer checksum,
+  and asks before running it
 
 Some requirements still need you because they involve a signed app, first-run setup,
 or account login:
@@ -67,13 +68,16 @@ or account login:
 
 ## Install
 
-### Quick install (one command)
+### Quick install
 
-Paste this into a terminal. It installs `glaze-dev`, sets up everything it can
-automatically, and then tells you clearly about any manual requirement that remains.
+Clone the repository first so you can inspect the installer you are about to run.
+It installs `glaze-dev`, sets up everything it can automatically, and then tells
+you clearly about any manual requirement that remains.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GaimsDevSoftware/glaze-coder/main/install.sh | zsh
+git clone https://github.com/GaimsDevSoftware/glaze-coder.git
+cd glaze-coder
+./install.sh
 ```
 
 ![Install from the terminal](install-terminal.gif)
@@ -97,8 +101,8 @@ prefer to do it by hand.
 
 ### Claude Code plugin (manual)
 
-The one-command installer already does this when `claude` is on your PATH. To do it
-yourself from inside Claude Code:
+The installer can do this when `claude` is on your PATH. To do it yourself from
+inside Claude Code:
 
 ```
 /plugin marketplace add GaimsDevSoftware/glaze-coder
@@ -109,6 +113,8 @@ yourself from inside Claude Code:
 
 This gives you the `glaze-app-dev` skill and the `/glaze-coder:glaze` command. It works
 the same whether you run Claude Code in a terminal or in the desktop app.
+Only install it if you trust the `GaimsDevSoftware/glaze-coder` repository and its
+future plugin updates.
 
 ### Raycast (optional)
 

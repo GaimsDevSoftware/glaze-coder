@@ -235,6 +235,8 @@ _install_claude_code() {
 
 _install_claude_plugin() {
   command -v claude >/dev/null 2>&1 || return 1
+  print "   This installs plugin code from the GaimsDevSoftware/glaze-coder marketplace."
+  print "   Install it only if you trust that repository and its future updates."
   claude plugin marketplace add GaimsDevSoftware/glaze-coder >/dev/null 2>&1 || true
   claude plugin install glaze-coder >/dev/null 2>&1 \
     || claude plugin install glaze-coder@glaze-coder-marketplace >/dev/null 2>&1
@@ -339,13 +341,18 @@ cmd_setup() {
     if claude plugin list 2>/dev/null | grep -q "glaze-coder"; then
       print -P "$pass The Claude Code plugin (/glaze-coder:glaze) is installed"
     else
-      print -P "$note The Claude Code plugin is missing; installing it now."
-      if _install_claude_plugin; then
-        print -P "$pass Installed the Claude Code plugin (/glaze-coder:glaze)"
+      print -P "$note The Claude Code plugin is missing."
+      print "   It is optional, and pulls code from the GaimsDevSoftware/glaze-coder marketplace."
+      if _setup_ask n "Install the Claude Code plugin now?"; then
+        if _install_claude_plugin; then
+          print -P "$pass Installed the Claude Code plugin (/glaze-coder:glaze)"
+        else
+          print -P "$fail Could not install the Claude Code plugin automatically."
+          print "   Requirement: run: claude plugin install glaze-coder"
+          ready=0
+        fi
       else
-        print -P "$fail Could not install the Claude Code plugin automatically."
-        print "   Requirement: run: claude plugin install glaze-coder"
-        ready=0
+        print "   Skipped. To install later, run: claude plugin install glaze-coder"
       fi
     fi
   fi
