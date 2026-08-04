@@ -6,7 +6,7 @@
 # @raycast.icon 🛠️
 # @raycast.argument1 { "type": "text", "placeholder": "app name" }
 # @raycast.argument2 { "type": "dropdown", "placeholder": "tool", "optional": true, "data": [{"title": "Claude Code", "value": "claude"}, {"title": "ZCode (z.ai)", "value": "zcode"}] }
-# @raycast.argument3 { "type": "dropdown", "placeholder": "where", "optional": true, "data": [{"title": "Auto (running/last used terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "The desktop app", "value": "desktop"}] }
+# @raycast.argument3 { "type": "dropdown", "placeholder": "where", "optional": true, "data": [{"title": "Auto (running/last used terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Desktop app", "value": "desktop"}] }
 #
 # The choices happen in the Raycast fields (dropdowns), no external dialog = never any
 # focus trouble. Empty tool = Claude Code. Empty place = auto. New terminals: add them
