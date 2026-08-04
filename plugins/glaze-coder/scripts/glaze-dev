@@ -42,6 +42,20 @@ AR_SKILLS="$GLAZE_BASE/agent-resources/current/.claude/skills"
 AR_GUIDE="$GLAZE_BASE/agent-resources/current/GLAZE-APP-GUIDE.md"
 NPMRC="$GLAZE_BASE/.npmrc"
 
+# --- Find Raycast (v2 ships as "Raycast Beta.app", side by side with v1) ------
+# Prints the app bundle path of the preferred install, or nothing if absent.
+_raycast_app() {
+  local d
+  for d in \
+    "/Applications/Raycast Beta.app" \
+    "$HOME/Applications/Raycast Beta.app" \
+    "/Applications/Raycast.app" \
+    "$HOME/Applications/Raycast.app" ; do
+    [[ -d "$d" ]] && { print -r -- "$d"; return 0; }
+  done
+  return 1
+}
+
 # --- Glaze sin medfølgende Node (kreves: node >= 24) --------------------------
 node_bins=("$GLAZE_BASE"/node/runtime/*/bin(N))
 if (( ${#node_bins} )); then
@@ -358,8 +372,9 @@ cmd_setup() {
   fi
 
   # 7) Raycast (optional)
-  if [[ -d "/Applications/Raycast.app" || -d "$HOME/Applications/Raycast.app" ]]; then
-    print -P "$pass Raycast found. Set up the commands with: glaze-dev raycast"
+  local rc_app; rc_app="$(_raycast_app || true)"
+  if [[ -n "$rc_app" ]]; then
+    print -P "$pass ${rc_app:t:r} found. Set up the commands with: glaze-dev raycast"
   else
     print -P "$note Raycast not found (optional). Everything works fine without it."
   fi
@@ -569,13 +584,15 @@ cmd_skills()  { _link_skills; print "✓ Glaze-skills koblet inn i ~/.claude/ski
 cmd_raycast() {
   local rc="${GLAZE_DEV_SELF:h}/raycast"
   [[ -d "$rc" ]] || { print -u2 "❌ Fant ikke Raycast-mappen: $rc"; exit 1; }
+  local rc_app; rc_app="$(_raycast_app || true)"
+  local rc_name="${rc_app:t:r}"; : "${rc_name:=Raycast}"
   command -v pbcopy >/dev/null 2>&1 && printf '%s' "$rc" | pbcopy
-  open -a Raycast 2>/dev/null || true
+  [[ -n "$rc_app" ]] && { open -a "$rc_app" 2>/dev/null || true; }
   osascript -e 'display notification "Add Directories, så Cmd+Shift+G og lim inn" with title "glaze-dev: Raycast"' 2>/dev/null || true
   print -r -- "Sti kopiert til utklippstavlen:"
   print -r -- "  $rc"
   print -r -- ""
-  print -r -- "I Raycast: Settings > Extensions > Script Commands > Add Directories,"
+  print -r -- "I $rc_name: Settings > Extensions > Script Commands > Add Directories,"
   print -r -- "trykk Cmd+Shift+G, lim inn (Cmd+V), Enter, så Open."
 }
 
