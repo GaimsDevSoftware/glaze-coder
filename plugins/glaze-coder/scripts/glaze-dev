@@ -393,7 +393,11 @@ cmd_setup() {
 cmd_queue() {
   _need "$1"
   local meta="$(_appmeta "$ROOT")"; local prod="${meta%%|*}"
-  osascript -l JavaScript - "$prod" <<'JXA'
+  # Hard timeout: UI-skraping av et stort Glaze-vindu kan ta svaert lang tid, og
+  # osascript kan blokkere paa automatiserings-tillatelse (saerlig fra Raycast).
+  # Uten svar innen fristen svarer vi NO_QUEUE i stedet for aa henge.
+  local out rc
+  out="$(perl -e 'alarm shift; exec @ARGV' 6 osascript -l JavaScript - "$prod" <<'JXA'
 function run(argv) {
   const title = argv[0];
   const se = Application('System Events');
@@ -405,8 +409,9 @@ function run(argv) {
   if (!win) return 'NO_WINDOW';
   const texts = [];
   let markerY = null;
+  const deadline = Date.now() + 4000;
   (function walk(el, d) {
-    if (d > 60) return;
+    if (d > 25 || Date.now() > deadline) return;
     let kids; try { kids = el.uiElements(); } catch (e) { return; }
     for (const k of kids) {
       let role = '', title = '';
@@ -435,6 +440,8 @@ function run(argv) {
   return items.map((t, i) => (i + 1) + '. ' + t).join('\n\n');
 }
 JXA
+)"; rc=$?
+  if [[ $rc -ne 0 || -z "$out" ]]; then print -r -- "NO_QUEUE"; else print -r -- "$out"; fi
 }
 
 # Handoff-prompten en agent får når vi tar over en app der Glaze-vibekoderen slapp.
@@ -684,7 +691,33 @@ cmd_new() {
   cp -cR "$troot" "$new" 2>/dev/null || cp -R "$troot" "$new"
   rm -f  "$new"/*.app(N) 2>/dev/null
   rm -rf "$newsrc/.git" "$new/.glaze" 2>/dev/null
-  rm -f  "$newsrc/.glaze_memory/PROJECT-HISTORY.md"(N) 2>/dev/null
+  # Prosjektminnet tilhoerer mal-appen, ikke den nye. En klonet PROJECT-CONTEXT.md
+  # beskriver feil app og gir agenten feil bilde av hva som finnes (SeedStream arvet
+  # DiskMaps minne slik). Fjern de app-spesifikke minnefilene + notater oppkalt etter
+  # mal-appen; generelle Glaze-laerdommer (smaa notatfiler) beholdes.
+  local tslug="$(_slug "$tprod")"
+  for _m in PROJECT-CONTEXT.md PROJECT-CONTEXT.original.md PROJECT-CONTEXT-ARCHIVE.md \
+            PROJECT-HISTORY.md HANDOFF.md MEMORY.md; do
+    rm -f "$newsrc/.glaze_memory/$_m" 2>/dev/null
+  done
+  rm -f "$newsrc/.glaze_memory/"*"$tslug"*.md(N) 2>/dev/null
+  if [[ -d "$newsrc/.glaze_memory" ]]; then
+    print -r -- '# Memory
+
+Fresh app - no project memory yet.
+
+## How this folder works
+
+- `PROJECT-CONTEXT.md` loads in EVERY session. Keep it under ~2500 words. It holds
+  the architecture map and the invariants, not the story behind them.
+- `PROJECT-HISTORY.md` holds the change log. Not auto-loaded. Append freely.
+- When you fix something notable: put the RULE in PROJECT-CONTEXT.md and the STORY
+  in PROJECT-HISTORY.md. If PROJECT-CONTEXT.md goes over budget, move the oldest
+  narrative out to PROJECT-HISTORY.md rather than letting it grow.
+- Read large source files with offset/limit, not in full. A 3000-line file read once
+  early in a session is paid for again on every later request in that session.' \
+      > "$newsrc/.glaze_memory/MEMORY.md"
+  fi
   # ikon-identitet skal IKKE arves: fjern hash-markøren så Glaze-agenten vet at
   # ikonet ikke er generert for denne appen. Selve malikonet blir stående som
   # midlertidig plassholder til du bytter app-icon.png/app-icon.icns.
