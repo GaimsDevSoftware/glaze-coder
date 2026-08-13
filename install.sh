@@ -16,11 +16,17 @@
 #   GLAZE_RAYCAST=1  Open Raycast to finish adding its commands
 #   GLAZE_ALLOW_REMOTE_BOOTSTRAP=1
 #                     Allow a standalone install.sh to download the repo archive
+#   GLAZE_REF=<tag>   Download that exact tag instead of the main branch. Callers
+#                     that fetched a pinned install.sh should pass the same tag,
+#                     so the code that runs is the code that was reviewed. An
+#                     existing local checkout is never modified when this is set.
 emulate -L zsh
 setopt pipe_fail 2>/dev/null
 
 REPO_URL="https://github.com/GaimsDevSoftware/glaze-coder.git"
-ARCHIVE_URL="https://github.com/GaimsDevSoftware/glaze-coder/archive/refs/heads/main.tar.gz"
+# GitHub serves /archive/<ref>.tar.gz for both branches and tags.
+REF="${GLAZE_REF:-main}"
+ARCHIVE_URL="https://github.com/GaimsDevSoftware/glaze-coder/archive/${REF}.tar.gz"
 green() { print -P "%F{green}$1%f"; }
 warn()  { print -P "%F{yellow}$1%f"; }
 head()  { print -P "%F{cyan}%B$1%b%f"; }
@@ -69,6 +75,12 @@ install_claude_code() {
 bootstrap_repo() {
   local target="$1"
   if [[ -d "$target/.git" ]]; then
+    # A pinned install must not touch a checkout the user owns and may be working
+    # in: no pull, no checkout, no detached HEAD. Their copy wins.
+    if [[ -n "${GLAZE_REF:-}" ]]; then
+      print "Using existing $target as is (pinned install does not modify a local checkout)."
+      return 0
+    fi
     print "Updating existing $target ..."
     if command -v git >/dev/null 2>&1; then
       git -C "$target" pull --quiet --ff-only || warn "Could not update, using existing copy."
@@ -84,19 +96,23 @@ bootstrap_repo() {
   fi
 
   if command -v git >/dev/null 2>&1; then
-    print "Cloning glaze-coder into $target ..."
-    git clone --quiet "$REPO_URL" "$target" || return 1
+    print "Cloning glaze-coder into $target ($REF) ..."
+    git clone --quiet --branch "$REF" --depth 1 "$REPO_URL" "$target" || return 1
     return 0
   fi
 
   if command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1; then
-    print "git is not installed; downloading glaze-coder as an archive..."
+    print "git is not installed; downloading glaze-coder as an archive ($REF)..."
     local tmp; tmp="$(mktemp -d)" || return 1
     mkdir -p "${target:h}"
     curl -fsSL "$ARCHIVE_URL" -o "$tmp/glaze-coder.tar.gz" || { rm -rf "$tmp"; return 1; }
     tar -xzf "$tmp/glaze-coder.tar.gz" -C "$tmp" || { rm -rf "$tmp"; return 1; }
+    # GitHub names the extracted folder after the ref (glaze-coder-main,
+    # glaze-coder-0.2.1, ...), so find it rather than assuming the branch.
+    local -a extracted; extracted=("$tmp"/glaze-coder-*(N/))
+    (( ${#extracted} )) || { rm -rf "$tmp"; return 1; }
     rm -rf "$target"
-    mv "$tmp/glaze-coder-main" "$target" || { rm -rf "$tmp"; return 1; }
+    mv "${extracted[1]}" "$target" || { rm -rf "$tmp"; return 1; }
     rm -rf "$tmp"
     return 0
   fi

@@ -1,6 +1,6 @@
 {
   "name": "glaze-coder",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Build, edit, run and debug Glaze (Raycast) desktop apps from Claude Code or ZCode, using your own Claude subscription or GLM Coding Plan instead of Glaze's paid credits. Includes a skill with the Glaze project layout, safety rules and the current SDK surface (built-in AI, MCP servers, native icons and thumbnails), and a launcher that builds locally with the Node runtime Glaze ships.",
   "author": {
     "name": "Robert",
