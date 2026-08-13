@@ -6,12 +6,14 @@
 # @raycast.icon 🛠️
 # @raycast.argument1 { "type": "text", "placeholder": "app name" }
 # @raycast.argument2 { "type": "dropdown", "placeholder": "verktøy", "optional": true, "data": [{"title": "Claude Code", "value": "claude"}, {"title": "ZCode (z.ai)", "value": "zcode"}] }
-# @raycast.argument3 { "type": "dropdown", "placeholder": "hvor", "optional": true, "data": [{"title": "Auto (kjørende/sist brukte terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Desktop-appen", "value": "desktop"}] }
+# @raycast.argument3 { "type": "dropdown", "placeholder": "hvor", "optional": true, "data": [{"title": "Auto (kjørende/sist brukte terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Ghostty", "value": "ghostty"}, {"title": "kitty", "value": "kitty"}, {"title": "Alacritty", "value": "alacritty"}, {"title": "WezTerm", "value": "wezterm"}, {"title": "Desktop-appen", "value": "desktop"}] }
 #
 # Valgene skjer i Raycast-feltene (dropdown), ingen ekstern dialog = aldri fokustrøbbel.
 # Tomt verktøy = Claude Code. Tomt sted = auto. Nye terminaler: legg til i data-listen.
 export PATH="$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-source "$HOME/glaze-coder/plugins/glaze-coder/scripts/terminal-launch.sh"
+# Finn terminal-launch.sh relativt til dette scriptet, ikke en antatt clone-sti:
+# repoet kan ligge hvor som helst (Raycast kjører scriptet med full sti i $0).
+source "${0:A:h}/../terminal-launch.sh"
 
 src="$("$HOME/.local/bin/glaze-dev" path "$1" 2>/dev/null)"
 if [[ -z "$src" ]]; then
@@ -24,7 +26,9 @@ where="${3:-auto}"
 [[ "$tool" == zcode ]] && label="ZCode" || label="Claude Code"
 cmd="exec $HOME/.local/bin/glaze-dev code --tool '$tool' '$1'"
 
-urlenc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
+# osascript i stedet for python3: /usr/bin/python3 er en CLT-stub som popper en
+# GUI-installasjonsdialog på maskiner uten Xcode Command Line Tools installert.
+urlenc() { osascript -l JavaScript -e 'function run(argv){return encodeURIComponent(argv[0])}' "$1"; }
 
 # Handoff-prompten som limes inn hos agenten. Agent-uavhengig: gjelder både Claude
 # Code og ZCode. Bygges ett sted (glaze-dev), som også fletter inn en pauset Glaze-kø.

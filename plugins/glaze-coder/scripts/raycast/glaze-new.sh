@@ -10,7 +10,9 @@
 # Lager en tom app og åpner kodeverktøyet direkte med startprompt (glaze-dev start).
 # Verktøy: Claude Code (standard) eller ZCode. Terminal velges automatisk.
 export PATH="$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-source "$HOME/glaze-coder/plugins/glaze-coder/scripts/terminal-launch.sh"
+# Finn terminal-launch.sh relativt til dette scriptet, ikke en antatt clone-sti:
+# repoet kan ligge hvor som helst (Raycast kjører scriptet med full sti i $0).
+source "${0:A:h}/../terminal-launch.sh"
 tool="${2:-claude}"
 [[ "$tool" == zcode ]] && label="ZCode" || label="Claude Code"
 term="$(launch_in_terminal "exec $HOME/.local/bin/glaze-dev start --tool '$tool' '$1'")"
