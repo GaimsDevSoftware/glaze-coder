@@ -1,9 +1,9 @@
 #!/bin/zsh
-# terminal-launch.sh - velg og start riktig terminal for interaktive kommandoer.
-# Bruk:  source terminal-launch.sh; launch_in_terminal "<kommando>"
-# Overstyring:  GLAZE_TERMINAL=iterm|terminal|ghostty|kitty|alacritty|wezterm
+# terminal-launch.sh - pick and start the right terminal for interactive commands.
+# Usage:     source terminal-launch.sh; launch_in_terminal "<command>"
+# Override:  GLAZE_TERMINAL=iterm|terminal|ghostty|kitty|alacritty|wezterm
 
-_tl_installed() { # <App.app-navn> -> full sti eller tomt
+_tl_installed() { # <App.app name> -> full path, or empty
   local a
   for a in "/Applications/$1" "/Applications/Utilities/$1" "/System/Applications/Utilities/$1" "$HOME/Applications/$1"; do
     [[ -d "$a" ]] && { print -r -- "$a"; return 0; }
@@ -11,14 +11,14 @@ _tl_installed() { # <App.app-navn> -> full sti eller tomt
   return 1
 }
 
-_tl_lastused() { # <app-sti> -> epoch (0 hvis ukjent)
+_tl_lastused() { # <app path> -> epoch (0 if unknown)
   local d="$(mdls -raw -name kMDItemLastUsedDate "$1" 2>/dev/null)"
   [[ -z "$d" || "$d" == "(null)" ]] && { print 0; return; }
   date -j -f "%Y-%m-%d %H:%M:%S %z" "$d" +%s 2>/dev/null || print 0
 }
 
 _tl_pick() {
-  # 1) Manuelt valg
+  # 1) Manual choice
   case "${GLAZE_TERMINAL:l}" in
     iterm)     print iTerm;     return ;;
     terminal)  print Terminal;  return ;;
@@ -27,14 +27,14 @@ _tl_pick() {
     alacritty) print Alacritty; return ;;
     wezterm)   print WezTerm;   return ;;
   esac
-  # 2) Kjørende terminal vinner
+  # 2) A running terminal wins
   pgrep -qx iTerm2    && { print iTerm;     return; }
   pgrep -qx ghostty   && { print Ghostty;   return; }
   pgrep -qx kitty     && { print kitty;     return; }
   pgrep -qx alacritty && { print Alacritty; return; }
   pgrep -qx wezterm-gui && { print WezTerm; return; }
   pgrep -qx Terminal  && { print Terminal;  return; }
-  # 3) Sist brukte av de installerte
+  # 3) Most recently used of the installed ones
   local best="Terminal" best_ts=-1 name path ts
   for name in iTerm Ghostty kitty Alacritty WezTerm Terminal; do
     path="$(_tl_installed "$name.app")" || continue
@@ -44,9 +44,9 @@ _tl_pick() {
   print -r -- "$best"
 }
 
-launch_in_terminal() { # <kommando som skal kjøres interaktivt>
+launch_in_terminal() { # <command to run interactively>
   local cmd="$1" term="$(_tl_pick)"
-  local esc="${cmd//\\/\\\\}"; esc="${esc//\"/\\\"}"   # escape for AppleScript-streng
+  local esc="${cmd//\\/\\\\}"; esc="${esc//\"/\\\"}"   # escape for the AppleScript string
   case "$term" in
     iTerm)
       osascript -e 'tell application "iTerm" to activate' \

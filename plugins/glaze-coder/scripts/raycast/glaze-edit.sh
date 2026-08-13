@@ -5,19 +5,20 @@
 # @raycast.packageName Glaze Coder
 # @raycast.icon 🛠️
 # @raycast.argument1 { "type": "text", "placeholder": "app name" }
-# @raycast.argument2 { "type": "dropdown", "placeholder": "verktøy", "optional": true, "data": [{"title": "Claude Code", "value": "claude"}, {"title": "ZCode (z.ai)", "value": "zcode"}] }
-# @raycast.argument3 { "type": "dropdown", "placeholder": "hvor", "optional": true, "data": [{"title": "Auto (kjørende/sist brukte terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Ghostty", "value": "ghostty"}, {"title": "kitty", "value": "kitty"}, {"title": "Alacritty", "value": "alacritty"}, {"title": "WezTerm", "value": "wezterm"}, {"title": "Desktop-appen", "value": "desktop"}] }
+# @raycast.argument2 { "type": "dropdown", "placeholder": "tool", "optional": true, "data": [{"title": "Claude Code", "value": "claude"}, {"title": "ZCode (z.ai)", "value": "zcode"}] }
+# @raycast.argument3 { "type": "dropdown", "placeholder": "where", "optional": true, "data": [{"title": "Auto (running/last used terminal)", "value": "auto"}, {"title": "Terminal", "value": "terminal"}, {"title": "iTerm", "value": "iterm"}, {"title": "Ghostty", "value": "ghostty"}, {"title": "kitty", "value": "kitty"}, {"title": "Alacritty", "value": "alacritty"}, {"title": "WezTerm", "value": "wezterm"}, {"title": "Claude Desktop app", "value": "desktop"}] }
 #
-# Valgene skjer i Raycast-feltene (dropdown), ingen ekstern dialog = aldri fokustrøbbel.
-# Tomt verktøy = Claude Code. Tomt sted = auto. Nye terminaler: legg til i data-listen.
+# The choices live in the Raycast fields (dropdowns), so no external dialog and
+# never any focus trouble. Empty tool = Claude Code. Empty place = auto.
+# New terminals: add them to the data list.
 export PATH="$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-# Finn terminal-launch.sh relativt til dette scriptet, ikke en antatt clone-sti:
-# repoet kan ligge hvor som helst (Raycast kjører scriptet med full sti i $0).
+# Resolve terminal-launch.sh relative to this script rather than an assumed clone
+# path: the repo can live anywhere (Raycast runs the script with a full path in $0).
 source "${0:A:h}/../terminal-launch.sh"
 
 src="$("$HOME/.local/bin/glaze-dev" path "$1" 2>/dev/null)"
 if [[ -z "$src" ]]; then
-  echo "Fant ingen app som matcher '$1'. Prøv 'Glaze: New App' først, eller sjekk navnet."
+  echo "No app matches '$1'. Try 'Glaze: New App' first, or check the name."
   exit 0
 fi
 
@@ -26,18 +27,20 @@ where="${3:-auto}"
 [[ "$tool" == zcode ]] && label="ZCode" || label="Claude Code"
 cmd="exec $HOME/.local/bin/glaze-dev code --tool '$tool' '$1'"
 
-# osascript i stedet for python3: /usr/bin/python3 er en CLT-stub som popper en
-# GUI-installasjonsdialog på maskiner uten Xcode Command Line Tools installert.
+# osascript instead of python3: /usr/bin/python3 is a CLT stub that pops a GUI
+# install dialog on machines without the Xcode Command Line Tools installed.
 urlenc() { osascript -l JavaScript -e 'function run(argv){return encodeURIComponent(argv[0])}' "$1"; }
 
-# Handoff-prompten som limes inn hos agenten. Agent-uavhengig: gjelder både Claude
-# Code og ZCode. Bygges ett sted (glaze-dev), som også fletter inn en pauset Glaze-kø.
+# The handoff prompt pasted into the agent. Agent independent: it covers both
+# Claude Code and ZCode. Built in one place (glaze-dev), which also merges in a
+# paused Glaze queue.
 build_handoff() { "$HOME/.local/bin/glaze-dev" handoff "$1" 2>/dev/null; }
 
-# ZCode er en GUI-IDE, så "hvor"-valget gjelder ikke: vi gjør alltid den sømløse
-# flyten. glaze-dev eier hele den (åpne arbeidsområde via deep link, ny tråd med
-# Cmd+N, lim inn handoff med Cmd+V, aldri Enter) slik at Raycast og terminal deler
-# nøyaktig samme logikk. Statuslinjene under vises rett i Raycast sitt output-panel.
+# ZCode is a GUI IDE, so the "where" choice does not apply: we always run the
+# seamless flow. glaze-dev owns all of it (open the workspace via deep link, new
+# thread with Cmd+N, paste the handoff with Cmd+V, never Enter) so Raycast and the
+# terminal share exactly the same logic. The status lines below show up directly
+# in Raycast's output panel.
 if [[ "$tool" == zcode ]]; then
   "$HOME/.local/bin/glaze-dev" code --tool zcode "$1"
   exit 0
@@ -45,23 +48,24 @@ fi
 
 case "$where" in
   desktop)
-    # Claude Desktop: claude://-deeplink åpner Code-fanen på riktig mappe med
-    # handoff-prompten ferdig utfylt (bruker trykker Enter selv). Har Glaze-
-    # vibekoderen en pauset kø (f.eks. tomme kreditter), hentes den inn også.
+    # Claude Desktop: the claude:// deep link opens the Code tab on the right
+    # folder with the handoff prompt already filled in (the user presses Enter).
+    # If the Glaze vibe coder has a paused queue (out of credits, say), it comes
+    # along too.
     handoff="$(build_handoff "$1")"
     printf '%s' "$handoff" | pbcopy
     if open "claude://code/new?folder=$(urlenc "$src")&q=$(urlenc "$handoff")" 2>/dev/null; then
-      osascript -e "display notification \"Åpner $1 i Claude Code med mappe og handoff. Trykk Enter der for å starte.\" with title \"Glaze: Edit $1\"" 2>/dev/null
-      echo "Åpnet Claude Code (desktop) på '$1' med handoff-prompt. Trykk Enter der for å starte."
+      osascript -e "display notification \"Opening $1 in Claude Code with the folder and handoff. Press Enter there to start.\" with title \"Glaze: Edit $1\"" 2>/dev/null
+      echo "Opened Claude Code (desktop) on '$1' with the handoff prompt. Press Enter there to start."
     else
       open -a Claude
-      osascript -e "display notification \"Velg $1 i Code-fanen og lim inn handoff-prompten (Cmd+V).\" with title \"Glaze: Edit $1\"" 2>/dev/null
-      echo "Åpnet Claude Desktop. Velg '$1' i Code-fanen og lim inn handoff-prompten (ligger på utklippstavlen)."
+      osascript -e "display notification \"Pick $1 in the Code tab and paste the handoff prompt (Cmd+V).\" with title \"Glaze: Edit $1\"" 2>/dev/null
+      echo "Opened Claude Desktop. Pick '$1' in the Code tab and paste the handoff prompt (it is on your clipboard)."
     fi ;;
   auto)
     term="$(launch_in_terminal "$cmd")"
-    echo "Åpnet $label for '$1' i $term (auto)." ;;
+    echo "Opened $label for '$1' in $term (auto)." ;;
   *)
     term="$(GLAZE_TERMINAL="$where" launch_in_terminal "$cmd")"
-    echo "Åpnet $label for '$1' i $term." ;;
+    echo "Opened $label for '$1' in $term." ;;
 esac
