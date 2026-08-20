@@ -31,6 +31,38 @@ green() { print -P "%F{green}$1%f"; }
 warn()  { print -P "%F{yellow}$1%f"; }
 head()  { print -P "%F{cyan}%B$1%b%f"; }
 
+usage() {
+  print "Usage:"
+  print "  ./install.sh [--help]"
+  print "  zsh install.sh [--help]"
+  print ""
+  print "Installs glaze-coder from a reviewed local checkout. The core glaze-dev command"
+  print "is always installed; interactive runs ask which optional parts to install."
+  print ""
+  print "Options:"
+  print "  -h, --help   Show this help and exit"
+  print ""
+  print "Environment:"
+  print "  GLAZE_SKILLS=1|0                  Install or skip Glaze skills"
+  print "  GLAZE_CLAUDE=1|0                  Try to install Claude Code with npm"
+  print "  GLAZE_PLUGIN=1|0                  Install or skip the Claude Code plugin"
+  print "  GLAZE_RAYCAST=1|0                 Open or skip Raycast setup"
+  print "  GLAZE_ALLOW_REMOTE_BOOTSTRAP=1    Allow standalone install.sh to download repo"
+  print "  GLAZE_REF=<tag-or-branch>         Download a specific ref in standalone mode"
+  print ""
+  print "Examples:"
+  print "  ./install.sh"
+  print "  GLAZE_PLUGIN=0 GLAZE_RAYCAST=0 ./install.sh"
+  print "  GLAZE_ALLOW_REMOTE_BOOTSTRAP=1 zsh install.sh"
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
 # Ask a yes/no question. ask <default:y|n> <prompt>. Returns 0 for yes.
 # Falls back to the default when there is no terminal.
 ask() {
